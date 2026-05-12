@@ -1,7 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
 
-export default function Messages({ me, openProfile }) {
+export default function Messages({ me, openProfile, config }) {
   const [dialogs, setDialogs] = useState([]);
   const [users, setUsers] = useState([]);
   const [q, setQ] = useState('');
@@ -10,6 +10,11 @@ export default function Messages({ me, openProfile }) {
   const [text, setText] = useState('');
   const bodyRef = useRef(null);
 
+  const stickers = useMemo(() => {
+    const raw = config?.stickers || '😀,😂,😎,🔥,💜,👍,❤️,😭,😡,🎉';
+    return String(raw).split(',').map(s => s.trim()).filter(Boolean).slice(0, 40);
+  }, [config?.stickers]);
+
   async function loadDialogs(){ setDialogs(await api('/api/messages/dialogs')); }
   async function loadChat(id){ setMessages(await api(`/api/messages/with/${id}?limit=80`)); }
   useEffect(()=>{ loadDialogs(); }, []);
@@ -17,13 +22,16 @@ export default function Messages({ me, openProfile }) {
   useEffect(()=>{ bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' }); }, [messages.length]);
 
   async function search() { setUsers(await api(`/api/messages/users/search?q=${encodeURIComponent(q)}`)); }
+  async function sendMessage(value) {
+    if (!active || !String(value).trim()) return;
+    await api('/api/messages/send', { method:'POST', body: JSON.stringify({ toUserId: active.id, text: String(value).trim() }) });
+    await loadChat(active.id); await loadDialogs();
+  }
   async function send(e) {
     e.preventDefault();
-    if (!active || !text.trim()) return;
     const msg = text;
     setText('');
-    await api('/api/messages/send', { method:'POST', body: JSON.stringify({ toUserId: active.id, text: msg }) });
-    await loadChat(active.id); await loadDialogs();
+    await sendMessage(msg);
   }
 
   const list = q ? users : dialogs;
@@ -46,6 +54,7 @@ export default function Messages({ me, openProfile }) {
             </button>
           </div>
           <div ref={bodyRef} className="chatBody">{messages.map(m => <div key={m.id} className={m.fromUserId === me.id ? 'bubble mine' : 'bubble'}><span className="safeText">{m.text}</span><small>{new Date(m.createdAt).toLocaleTimeString('ru-RU')}</small></div>)}</div>
+          <div className="stickerBar">{stickers.map(st => <button key={st} type="button" className="stickerButton" onClick={()=>sendMessage(st)}>{st}</button>)}</div>
           <form className="chatInput" onSubmit={send}><input maxLength={2000} placeholder="Сообщение" value={text} onChange={e=>setText(e.target.value)}/><button>Отправить</button></form>
         </> : <div className="empty">Выбери диалог или найди пользователя</div>}
       </div>

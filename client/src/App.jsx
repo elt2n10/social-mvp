@@ -11,8 +11,8 @@ import Settings from './pages/Settings';
 
 const defaultConfig = {
   siteName: 'Yved',
-  logoUrl: '/yved-logo.png',
-  faviconUrl: '/favicon.png',
+  logoUrl: '',
+  faviconUrl: '/favicon.svg',
   accentColor: '#7c3cff',
   secondColor: '#2aa7ff',
   backgroundColor: '#090a10',
@@ -49,6 +49,28 @@ export default function App() {
   const [devPassword, setDevPassword] = useState('');
   const [error, setError] = useState('');
   const [config, setConfig] = useState(defaultConfig);
+
+  // Вкладки теперь живут в hash URL: #home, #videos, #messages, #profile, #settings.
+  // Поэтому кнопка «Назад» в браузере переключает вкладки, а не выбрасывает с сайта.
+  useEffect(() => {
+    const allowed = ['home', 'videos', 'messages', 'profile', 'settings'];
+    const syncFromHash = () => {
+      const next = window.location.hash.replace('#', '');
+      if (allowed.includes(next)) setPage(next);
+    };
+    syncFromHash();
+    window.addEventListener('popstate', syncFromHash);
+    window.addEventListener('hashchange', syncFromHash);
+    return () => {
+      window.removeEventListener('popstate', syncFromHash);
+      window.removeEventListener('hashchange', syncFromHash);
+    };
+  }, []);
+
+  function goPage(nextPage) {
+    setPage(nextPage);
+    if (window.location.hash !== `#${nextPage}`) window.history.pushState(null, '', `#${nextPage}`);
+  }
 
   useEffect(() => {
     api('/api/site/config')
@@ -111,19 +133,19 @@ export default function App() {
     } catch (err) { setError(err.message); }
   }
 
-  function logout() { clearToken(); setUser(null); setPage('home'); }
-  function openProfile(id) { setProfileId(id); setPage('profile'); }
-  function openMyProfile() { setProfileId(user?.id); setPage('profile'); }
+  function logout() { clearToken(); setUser(null); goPage('home'); }
+  function openProfile(id) { setProfileId(id); goPage('profile'); }
+  function openMyProfile() { setProfileId(user?.id); goPage('profile'); }
 
   if (!inviteOk) return <div className="center denied"><h1>Доступ запрещён</h1><p>Открой сайт по invite-ссылке.</p></div>;
   if (!user) return <Auth onAuth={setUser} config={config} />;
 
   return <>
-    <Layout page={page} setPage={setPage} user={user} config={config} openMyProfile={openMyProfile}>
+    <Layout page={page} setPage={goPage} user={user} config={config} openMyProfile={openMyProfile}>
       {page === 'home' && <Home openProfile={openProfile} />}
       {page === 'videos' && <Videos openProfile={openProfile} />}
-      {page === 'messages' && <Messages me={user} openProfile={openProfile} />}
-      {page === 'profile' && <Profile user={user} setUser={setUser} profileId={profileId || user.id} openMessages={() => setPage('messages')} />}
+      {page === 'messages' && <Messages me={user} openProfile={openProfile} config={config} />}
+      {page === 'profile' && <Profile user={user} setUser={setUser} profileId={profileId || user.id} openMessages={() => goPage('messages')} />}
       {page === 'settings' && <Settings onLogout={logout} onDevSecret={() => setDevLogin(true)} config={config} setConfig={(cfg) => { const merged = { ...config, ...cfg }; setConfig(merged); applyConfig(merged); }} />}
     </Layout>
 

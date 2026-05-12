@@ -38,7 +38,7 @@ router.post('/register', async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 10);
   const result = db.prepare('INSERT INTO users (username, email, passwordHash) VALUES (?, ?, ?)').run(username, email, passwordHash);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '180d' });
   res.json({ token, user: publicUser(user) });
 });
 
@@ -49,7 +49,7 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return res.status(401).json({ message: 'Неверный логин или пароль' });
   if (user.isBlocked) return res.status(403).json({ message: 'Аккаунт заблокирован' });
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
+  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '180d' });
   res.json({ token, user: publicUser(user) });
 });
 

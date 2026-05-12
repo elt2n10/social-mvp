@@ -31,7 +31,7 @@ export default function DevPanel({ open, onClose, config, onConfig }) {
   async function saveConfig(e) {
     e.preventDefault();
     const fd = new FormData();
-    ['siteName','accentColor','secondColor','backgroundColor','cardColor','buttonRadius','soundsEnabled','animationsEnabled','inviteEnabled'].forEach(k => fd.append(k, site[k]));
+    ['siteName','accentColor','secondColor','backgroundColor','cardColor','buttonRadius','soundsEnabled','animationsEnabled','inviteEnabled','stickers'].forEach(k => fd.append(k, site[k] ?? ''));
     if (logo) fd.append('logo', logo);
     if (favicon) fd.append('favicon', favicon);
     const updated = await api('/api/dev/config', { method:'PUT', body: fd });
@@ -66,6 +66,7 @@ export default function DevPanel({ open, onClose, config, onConfig }) {
         <label className="checkLine"><input type="checkbox" checked={site.soundsEnabled === true || site.soundsEnabled === 'true'} onChange={e=>setField('soundsEnabled', e.target.checked)} /> Звуки</label>
         <label className="checkLine"><input type="checkbox" checked={site.animationsEnabled === true || site.animationsEnabled === 'true'} onChange={e=>setField('animationsEnabled', e.target.checked)} /> Анимации</label>
         <label className="checkLine"><input type="checkbox" checked={site.inviteEnabled === true || site.inviteEnabled === 'true'} onChange={e=>setField('inviteEnabled', e.target.checked)} /> Закрыть сайт invite-ссылкой</label>
+        <label>Стикеры для ЛС<textarea value={site.stickers || ''} onChange={e=>setField('stickers', e.target.value)} placeholder="😀,😂,😎,🔥,💜" /></label>
         <button>Сохранить настройки сайта</button>
       </form>
 

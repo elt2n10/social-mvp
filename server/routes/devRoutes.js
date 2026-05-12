@@ -5,7 +5,7 @@ const upload = require('../middleware/upload');
 const { getConfig } = require('./siteRoutes');
 const router = express.Router();
 
-router.post('/login', auth, (req, res) => {
+router.post('/login', (req, res) => {
   const { password } = req.body;
   // Настоящий пароль берётся только из .env / Render Environment Variables.
   if (password && password === process.env.DEV_PASSWORD) return res.json({ devAccess: true });
@@ -95,7 +95,7 @@ router.get('/config', auth, devOnly, (req, res) => {
 router.put('/config', auth, devOnly, upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'favicon', maxCount: 1 }]), (req, res) => {
   const allowedKeys = [
     'siteName', 'accentColor', 'secondColor', 'backgroundColor', 'cardColor',
-    'buttonRadius', 'soundsEnabled', 'animationsEnabled', 'inviteEnabled'
+    'buttonRadius', 'soundsEnabled', 'animationsEnabled', 'inviteEnabled', 'stickers'
   ];
   const update = db.prepare('INSERT INTO site_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
   for (const key of allowedKeys) {

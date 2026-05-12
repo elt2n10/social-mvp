@@ -126,8 +126,8 @@ addColumnIfMissing('videos', 'moderationReason', "moderationReason TEXT DEFAULT 
 
 const defaultConfig = {
   siteName: 'Yved',
-  logoUrl: '/yved-logo.png',
-  faviconUrl: '/favicon.png',
+  logoUrl: '',
+  faviconUrl: '/favicon.svg',
   accentColor: '#7c3cff',
   secondColor: '#2aa7ff',
   backgroundColor: '#090a10',
@@ -135,7 +135,8 @@ const defaultConfig = {
   buttonRadius: '14',
   soundsEnabled: 'true',
   animationsEnabled: 'true',
-  inviteEnabled: 'false'
+  inviteEnabled: 'false',
+  stickers: '😀,😂,😎,🔥,💜,👍,❤️,😭,😡,🎉'
 };
 
 const insertConfig = db.prepare('INSERT OR IGNORE INTO site_config (key, value) VALUES (?, ?)');

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
 
 export default function Profile({ user, setUser, profileId, openMessages }) {
@@ -11,6 +11,12 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
   const [profileColor, setProfileColor] = useState(user.profileColor || '');
   const [avatar, setAvatar] = useState(null);
   const [cover, setCover] = useState(null);
+  const [postText, setPostText] = useState('');
+  const [postImage, setPostImage] = useState(null);
+  const [videoDesc, setVideoDesc] = useState('');
+  const [videoFile, setVideoFile] = useState(null);
+  const postFileRef = useRef(null);
+  const videoFileRef = useRef(null);
   const isMe = Number(profileId) === Number(user.id);
 
   async function load(){
@@ -31,6 +37,28 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
     setUser(updated); setProfile(updated); setEdit(false);
   }
 
+  async function publishPost(e) {
+    e.preventDefault();
+    if (!postText.trim() && !postImage) return;
+    const fd = new FormData();
+    fd.append('text', postText);
+    if (postImage) fd.append('image', postImage);
+    await api('/api/posts', { method:'POST', body: fd });
+    setPostText(''); setPostImage(null); if (postFileRef.current) postFileRef.current.value = '';
+    await load();
+  }
+
+  async function publishVideo(e) {
+    e.preventDefault();
+    if (!videoFile) return;
+    const fd = new FormData();
+    fd.append('description', videoDesc);
+    fd.append('video', videoFile);
+    await api('/api/videos', { method:'POST', body: fd });
+    setVideoDesc(''); setVideoFile(null); if (videoFileRef.current) videoFileRef.current.value = '';
+    await load();
+  }
+
   if (!profile) return <section><h1>Профиль</h1><div className="card">Загрузка...</div></section>;
 
   return <section>
@@ -43,14 +71,37 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
         {isMe ? <button onClick={()=>setEdit(!edit)}>Редактировать</button> : <button onClick={openMessages}>Написать</button>}
       </div>
     </div>
+
     {isMe && edit && <form className="card composer" onSubmit={save}>
       <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Имя" />
       <textarea value={description} onChange={e=>setDescription(e.target.value)} placeholder="Описание" />
       <label>Цвет профиля<input type="color" value={profileColor || '#7c3cff'} onChange={e=>setProfileColor(e.target.value)}/></label>
-      <label>Аватар<input type="file" accept="image/*" onChange={e=>setAvatar(e.target.files[0])}/></label>
-      <label>Обложка<input type="file" accept="image/*" onChange={e=>setCover(e.target.files[0])}/></label>
+      <label className="fileButton inlineFile">Аватар<input type="file" accept="image/*" onChange={e=>setAvatar(e.target.files[0])}/></label>
+      <label className="fileButton inlineFile">Обложка<input type="file" accept="image/*" onChange={e=>setCover(e.target.files[0])}/></label>
       <button>Сохранить</button>
     </form>}
+
+    {isMe && <div className="profilePublishGrid">
+      <form className="card composer" onSubmit={publishPost}>
+        <h3>Новый пост</h3>
+        <textarea maxLength={3000} placeholder="Напиши пост прямо из профиля" value={postText} onChange={e=>setPostText(e.target.value)} />
+        <div className="row responsiveRow">
+          <input ref={postFileRef} id="profilePostImage" className="hiddenFile" type="file" accept="image/*" onChange={e=>setPostImage(e.target.files[0] || null)}/>
+          <label className="fileButton" htmlFor="profilePostImage">📷 {postImage ? postImage.name : 'Фото'}</label>
+          <button>Опубликовать</button>
+        </div>
+      </form>
+      <form className="card composer" onSubmit={publishVideo}>
+        <h3>Новое видео</h3>
+        <input maxLength={600} placeholder="Описание видео" value={videoDesc} onChange={e=>setVideoDesc(e.target.value)} />
+        <div className="row responsiveRow">
+          <input ref={videoFileRef} id="profileVideoInput" className="hiddenFile" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={e=>setVideoFile(e.target.files[0] || null)}/>
+          <label className="fileButton" htmlFor="profileVideoInput">🎬 {videoFile ? videoFile.name : 'Видео'}</label>
+          <button>Загрузить</button>
+        </div>
+      </form>
+    </div>}
+
     <h2>Посты</h2>
     <div className="grid">{posts.map(p=><div className="card" key={p.id}><p className="safeText">{p.text}</p>{p.imageUrl && <img className="postImage" src={fileUrl(p.imageUrl)}/>}<small>♥ {p.likes}</small></div>)}</div>
     <h2>Видео</h2>

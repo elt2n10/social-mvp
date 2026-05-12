@@ -11,6 +11,7 @@ export default function Videos({ openProfile }) {
   const [comment, setComment] = useState({});
   const [hasMore, setHasMore] = useState(true);
   const videoRefs = useRef({});
+  const fileRef = useRef(null);
 
   async function load(reset = false) {
     const nextOffset = reset ? 0 : offset;
@@ -21,29 +22,43 @@ export default function Videos({ openProfile }) {
   }
   useEffect(() => { load(true); }, []);
 
+  function pauseAll(except = null) {
+    Object.values(videoRefs.current).forEach(v => { if (v && v !== except) v.pause(); });
+  }
+
   useEffect(() => {
     const observer = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
         const vid = entry.target.querySelector('video');
         if (!vid) return;
-        if (entry.isIntersecting && entry.intersectionRatio > 0.65) {
-          Object.values(videoRefs.current).forEach(v => { if (v && v !== vid) v.pause(); });
+        if (entry.isIntersecting && entry.intersectionRatio > 0.72) {
+          pauseAll(vid);
+          vid.muted = true;
           vid.play().catch(()=>{});
         } else {
           vid.pause();
         }
       });
-    }, { threshold: [0.2, 0.65, 0.9] });
+    }, { threshold: [0.15, 0.72, 0.95] });
 
     document.querySelectorAll('.videoCard').forEach(card => observer.observe(card));
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); pauseAll(); };
   }, [videos.length]);
+
+  // Если пользователь ушёл на другую вкладку браузера — ставим видео на паузу.
+  useEffect(() => {
+    const onVisibility = () => { if (document.hidden) pauseAll(); };
+    window.addEventListener('pagehide', pauseAll);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { window.removeEventListener('pagehide', pauseAll); document.removeEventListener('visibilitychange', onVisibility); pauseAll(); };
+  }, []);
 
   async function upload(e) {
     e.preventDefault();
-    const fd = new FormData(); fd.append('description', description); if (video) fd.append('video', video);
+    if (!video) return;
+    const fd = new FormData(); fd.append('description', description); fd.append('video', video);
     await api('/api/videos', { method:'POST', body: fd });
-    setDescription(''); setVideo(null); await load(true);
+    setDescription(''); setVideo(null); if (fileRef.current) fileRef.current.value = ''; await load(true);
   }
   async function like(id) { await api(`/api/videos/${id}/like`, { method:'POST' }); await load(true); }
   async function addComment(id) { if (!comment[id]?.trim()) return; await api(`/api/videos/${id}/comments`, { method:'POST', body: JSON.stringify({ text: comment[id] }) }); setComment({...comment,[id]:''}); await load(true); }
@@ -53,12 +68,16 @@ export default function Videos({ openProfile }) {
       <h1>Видео</h1>
       <form className="card composer videoUpload" onSubmit={upload}>
         <input maxLength={600} placeholder="Описание видео" value={description} onChange={e=>setDescription(e.target.value)} />
-        <div className="row responsiveRow"><input type="file" accept="video/mp4,video/webm,video/quicktime" onChange={e=>setVideo(e.target.files[0])}/><button>Загрузить</button></div>
+        <div className="row responsiveRow">
+          <input ref={fileRef} id="videoInput" className="hiddenFile" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={e=>setVideo(e.target.files[0] || null)}/>
+          <label className="fileButton" htmlFor="videoInput">🎬 {video ? video.name : 'Выбрать видео'}</label>
+          <button>Загрузить</button>
+        </div>
       </form>
     </div>
     <div className="videoFeed">
       {videos.map((v, index) => <div className="videoCard pop" key={v.id}>
-        <video ref={el => { if (el) videoRefs.current[v.id] = el; }} src={fileUrl(v.videoUrl)} loop playsInline preload={index < 2 ? 'auto' : 'metadata'} />
+        <video onClick={(e)=> e.currentTarget.paused ? e.currentTarget.play().catch(()=>{}) : e.currentTarget.pause()} ref={el => { if (el) videoRefs.current[v.id] = el; }} src={fileUrl(v.videoUrl)} loop playsInline muted preload={index < 2 ? 'auto' : 'metadata'} />
         <div className="videoGradient" />
         <div className="videoOverlay">
           <button className="authorButton" onClick={()=>openProfile?.(v.authorId)}>@{v.authorName}</button>

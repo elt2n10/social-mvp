@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { api, setToken, fileUrl } from '../api/api';
+import { api, setToken } from '../api/api';
 
 export default function Auth({ onAuth, config }) {
   const [mode, setMode] = useState('login');
@@ -17,8 +17,8 @@ export default function Auth({ onAuth, config }) {
 
   return <div className="authPage">
     <form className="authCard pop" onSubmit={submit}>
-      <img className="authLogo" src={fileUrl(config?.logoUrl || '/yved-logo.png')} alt="Yved" />
-      <h1>{config?.siteName || 'Yved'}</h1>
+      <div className="authLogoText">{config?.siteName || 'Yved'}</div>
+      <h1>Вход</h1>
       <p>Соцсеть с постами, видео и сообщениями</p>
       {error && <div className="error">{error}</div>}
       {mode === 'register' && <>

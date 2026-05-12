@@ -1,7 +1,5 @@
 import React from 'react';
 import { Home, MessageCircle, PlaySquare, Settings, User } from 'lucide-react';
-import { fileUrl } from '../api/api';
-
 const items = [
   ['home', 'Главная', Home],
   ['videos', 'Видео', PlaySquare],
@@ -11,12 +9,10 @@ const items = [
 ];
 
 export default function Layout({ page, setPage, user, children, config, openMyProfile }) {
-  const logo = config?.logoUrl || '/yved-logo.png';
   return <div className="appShell">
     <aside className="sidebar">
       <button className="brand brandButton" onClick={() => setPage('home')}>
-        <img src={fileUrl(logo)} alt="Yved" />
-        <span>{config?.siteName || 'Yved'}</span>
+        <span className="brandTextOnly">{config?.siteName || 'Yved'}</span>
       </button>
       <button className="miniProfile cleanButton" onClick={openMyProfile}>
         {user?.avatar ? <img className="avatarImage" src={fileUrl(user.avatar)} /> : <div className="avatar">{user?.username?.[0]?.toUpperCase()}</div>}

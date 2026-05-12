@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
 
 const LIMIT = 20;
@@ -12,6 +12,7 @@ export default function Home({ openProfile }) {
   const [comment, setComment] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const fileRef = useRef(null);
 
   async function load(reset = false) {
     setLoading(true);
@@ -26,8 +27,9 @@ export default function Home({ openProfile }) {
 
   async function createPost(e) {
     e.preventDefault(); setError('');
+    if (!text.trim() && !image) return setError('Добавь текст или фото');
     const fd = new FormData(); fd.append('text', text); if (image) fd.append('image', image);
-    try { await api('/api/posts', { method:'POST', body:fd }); setText(''); setImage(null); await load(true); } catch(e) { setError(e.message); }
+    try { await api('/api/posts', { method:'POST', body:fd }); setText(''); setImage(null); if (fileRef.current) fileRef.current.value = ''; await load(true); } catch(e) { setError(e.message); }
   }
   async function like(id) { await api(`/api/posts/${id}/like`, { method:'POST' }); await load(true); }
   async function addComment(id) {
@@ -41,7 +43,11 @@ export default function Home({ openProfile }) {
     <form className="card composer" onSubmit={createPost}>
       {error && <p className="error">{error}</p>}
       <textarea maxLength={3000} placeholder="Что нового?" value={text} onChange={e=>setText(e.target.value)} />
-      <div className="row responsiveRow"><input type="file" accept="image/*" onChange={e=>setImage(e.target.files[0])}/><button>Опубликовать</button></div>
+      <div className="row responsiveRow">
+        <input ref={fileRef} id="postImageInput" className="hiddenFile" type="file" accept="image/*" onChange={e=>setImage(e.target.files[0] || null)}/>
+        <label className="fileButton" htmlFor="postImageInput">📷 {image ? image.name : 'Добавить фото'}</label>
+        <button>Опубликовать</button>
+      </div>
     </form>
     <div className="feed">
       {posts.map(p => <article className="card post pop" key={p.id}>
