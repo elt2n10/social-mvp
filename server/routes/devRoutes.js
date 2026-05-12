@@ -1,4 +1,5 @@
 const express = require('express');
+const jwt = require('jsonwebtoken');
 const db = require('../database');
 const { auth, devOnly } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -9,7 +10,10 @@ const router = express.Router();
 router.post('/login', (req, res) => {
   const { password } = req.body;
   // Настоящий пароль берётся только из .env / Render Environment Variables.
-  if (password && password === process.env.DEV_PASSWORD) return res.json({ devAccess: true });
+  if (password && password === process.env.DEV_PASSWORD) {
+    const devToken = jwt.sign({ dev: true, role: 'developer' }, process.env.JWT_SECRET, { expiresIn: '8h' });
+    return res.json({ devAccess: true, devToken });
+  }
   res.status(403).json({ message: 'Неверный пароль разработчика' });
 });
 

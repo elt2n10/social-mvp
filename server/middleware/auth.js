@@ -22,8 +22,15 @@ function notBlocked(req, res, next) {
 }
 
 function devOnly(req, res, next) {
-  if (req.headers['x-dev-access'] !== 'true') return res.status(403).json({ message: 'Нет доступа разработчика' });
-  next();
+  const token = req.headers['x-dev-token'];
+  if (!token) return res.status(403).json({ message: 'Нет доступа разработчика' });
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    if (!payload?.dev) return res.status(403).json({ message: 'Нет доступа разработчика' });
+    next();
+  } catch {
+    return res.status(403).json({ message: 'Сессия разработчика истекла' });
+  }
 }
 
 module.exports = { auth, notBlocked, devOnly };

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { api, clearToken, getToken, fileUrl } from './api/api';
+import { api, clearToken, getToken, fileUrl, getDevToken, setDevToken, clearDevToken } from './api/api';
 import Layout from './components/Layout';
 import DevPanel from './components/DevPanel';
 import Auth from './pages/Auth';
@@ -47,11 +47,19 @@ export default function App() {
   const [devLogin, setDevLogin] = useState(false);
   // Если режим разработчика уже был разблокирован, сайт НЕ открывает панель автоматически.
   // В настройках появятся кнопки меню разработчика и выхода из режима.
-  const [devUnlocked, setDevUnlocked] = useState(localStorage.getItem('devAccess') === 'true');
+  const [devUnlocked, setDevUnlocked] = useState(Boolean(getDevToken()));
   const [devPanel, setDevPanel] = useState(false);
   const [devPassword, setDevPassword] = useState('');
   const [error, setError] = useState('');
   const [config, setConfig] = useState(defaultConfig);
+
+  useEffect(() => {
+    // Старые версии сохраняли devAccess в localStorage и из-за этого кнопки разработчика
+    // могли появляться сразу после входа на сайт. Теперь режим разработчика живёт
+    // только до закрытия вкладки и подтверждается devToken от backend.
+    localStorage.removeItem('devAccess');
+    if (!getDevToken()) setDevUnlocked(false);
+  }, []);
 
   // Вкладки теперь живут в hash URL: #home, #videos, #messages, #profile, #settings.
   // Поэтому кнопка «Назад» в браузере переключает вкладки, а не выбрасывает с сайта.
@@ -130,8 +138,8 @@ export default function App() {
     e.preventDefault();
     setError('');
     try {
-      await api('/api/dev/login', { method: 'POST', body: JSON.stringify({ password: devPassword }) });
-      localStorage.setItem('devAccess', 'true');
+      const data = await api('/api/dev/login', { method: 'POST', body: JSON.stringify({ password: devPassword }) });
+      setDevToken(data.devToken);
       setDevLogin(false); setDevUnlocked(true); setDevPanel(true); setDevPassword('');
     } catch (err) { setError(err.message); }
   }
@@ -149,7 +157,7 @@ export default function App() {
       {page === 'videos' && <Videos openProfile={openProfile} />}
       {page === 'messages' && <Messages me={user} openProfile={openProfile} config={config} />}
       {page === 'profile' && <Profile user={user} setUser={setUser} profileId={profileId || user.id} openMessages={() => goPage('messages')} />}
-      {page === 'settings' && <Settings onLogout={logout} onDevSecret={() => setDevLogin(true)} devUnlocked={devUnlocked} onOpenDevPanel={() => setDevPanel(true)} onExitDev={() => { localStorage.removeItem('devAccess'); setDevUnlocked(false); setDevPanel(false); }} config={config} setConfig={(cfg) => { const merged = { ...config, ...cfg }; setConfig(merged); applyConfig(merged); }} />}
+      {page === 'settings' && <Settings onLogout={logout} onDevSecret={() => setDevLogin(true)} devUnlocked={devUnlocked} onOpenDevPanel={() => setDevPanel(true)} onExitDev={() => { clearDevToken(); setDevUnlocked(false); setDevPanel(false); }} config={config} setConfig={(cfg) => { const merged = { ...config, ...cfg }; setConfig(merged); applyConfig(merged); }} />}
     </Layout>
 
     {devLogin && <div className="modalBackdrop">
@@ -159,6 +167,6 @@ export default function App() {
       </form>
     </div>}
 
-    <DevPanel open={devPanel} onClose={() => setDevPanel(false)} onExitDev={() => { localStorage.removeItem('devAccess'); setDevUnlocked(false); setDevPanel(false); }} config={config} onConfig={(cfg) => { const merged = { ...config, ...cfg }; setConfig(merged); applyConfig(merged); }} />
+    <DevPanel open={devPanel} onClose={() => setDevPanel(false)} onExitDev={() => { clearDevToken(); setDevUnlocked(false); setDevPanel(false); }} config={config} onConfig={(cfg) => { const merged = { ...config, ...cfg }; setConfig(merged); applyConfig(merged); }} />
   </>;
 }

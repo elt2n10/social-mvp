@@ -50,7 +50,7 @@ export default function Home({ openProfile }) {
     if (!text.trim() && images.length === 0) return setError('Добавь текст или фото');
     const fd = new FormData();
     fd.append('text', text.slice(0, MAX_POST_CHARS));
-    images.forEach(img => fd.append('images', img));
+    images.forEach(img => fd.append('images[]', img));
     try {
       await api('/api/posts', { method:'POST', body:fd });
       setText(''); setImages([]); if (fileRef.current) fileRef.current.value = '';

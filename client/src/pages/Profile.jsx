@@ -77,7 +77,7 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
     if (!postText.trim() && postImages.length === 0) return;
     const fd = new FormData();
     fd.append('text', postText.slice(0, MAX_POST_CHARS));
-    postImages.forEach(img => fd.append('images', img));
+    postImages.forEach(img => fd.append('images[]', img));
     await api('/api/posts', { method:'POST', body: fd });
     setPostText(''); setPostImages([]); if (postFileRef.current) postFileRef.current.value = '';
     await load();

@@ -20,7 +20,7 @@ function parseJsonArray(value) {
 
 function mapPost(row) {
   const extraImages = parseJsonArray(row.imageUrls);
-  const images = extraImages.length ? extraImages : (row.imageUrl ? [row.imageUrl] : []);
+  const images = Array.from(new Set([...(row.imageUrl ? [row.imageUrl] : []), ...extraImages].filter(Boolean)));
   return {
     ...row,
     imageUrls: images,
@@ -53,21 +53,15 @@ router.get('/', auth, (req, res) => {
   res.json(posts);
 });
 
-router.post('/', auth, notBlocked, upload.fields([
-  { name: 'images', maxCount: MAX_POST_IMAGES },
-  { name: 'images[]', maxCount: MAX_POST_IMAGES },
-  { name: 'image', maxCount: 1 }
-]), async (req, res, next) => {
+router.post('/', auth, notBlocked, upload.any(), async (req, res, next) => {
   try {
     const text = String(req.body.text || '').slice(0, MAX_POST_TEXT);
     const moderation = checkText(text);
     if (!moderation.ok) return res.status(400).json({ message: 'Пост не опубликован: ' + moderation.reason });
 
-    const imageFiles = [
-      ...(req.files?.images || []),
-      ...(req.files?.['images[]'] || []),
-      ...(req.files?.image || [])
-    ].filter(file => file.mimetype.startsWith('image/')).slice(0, MAX_POST_IMAGES);
+    const imageFiles = (Array.isArray(req.files) ? req.files : [])
+      .filter(file => file.mimetype && file.mimetype.startsWith('image/'))
+      .slice(0, MAX_POST_IMAGES);
 
     if (!text.trim() && imageFiles.length === 0) return res.status(400).json({ message: 'Добавь текст или фото' });
 

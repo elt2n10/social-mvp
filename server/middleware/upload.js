@@ -20,7 +20,7 @@ const allowed = new Set([
 
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024, files: 12 },
   fileFilter: (_, file, cb) => {
     if (!allowed.has(file.mimetype)) return cb(new Error('Запрещённый тип файла'));
     cb(null, true);

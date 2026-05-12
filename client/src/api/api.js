@@ -12,8 +12,22 @@ export function clearToken() {
   localStorage.removeItem('token');
 }
 
+export function getDevToken() {
+  return sessionStorage.getItem('devToken');
+}
+
+export function setDevToken(token) {
+  sessionStorage.setItem('devToken', token);
+}
+
+export function clearDevToken() {
+  sessionStorage.removeItem('devToken');
+  localStorage.removeItem('devAccess'); // убираем старый флаг из прошлых версий
+}
+
 export async function api(path, options = {}) {
   const token = getToken();
+  const devToken = getDevToken();
 
   const headers = {
     ...(options.headers || {})
@@ -24,7 +38,7 @@ export async function api(path, options = {}) {
   }
 
   if (token) headers.Authorization = `Bearer ${token}`;
-  if (localStorage.getItem('devAccess') === 'true') headers['x-dev-access'] = 'true';
+  if (devToken) headers['x-dev-token'] = devToken;
 
   const response = await fetch(`${API_URL}${path}`, { ...options, headers });
   const data = await response.json().catch(() => ({}));
