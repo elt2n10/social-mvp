@@ -36,7 +36,7 @@ export default function Settings({ onLogout, onDevSecret, devUnlocked, onOpenDev
 
       {devUnlocked && <div className="settingsGroup devUnlockedBox">
         <h3>Режим разработчика</h3>
-        <p>Режим разблокирован. Панель не открывается сама — запускай её отсюда.</p>
+        <p>Режим разблокирован. Если твоя почта есть в DEV_EMAILS, он доступен автоматически. Панель не открывается сама — запускай её отсюда.</p>
         <div className="row responsiveRow">
           <button type="button" onClick={onOpenDevPanel}>Открыть меню разработчика</button>
           <button type="button" className="ghost" onClick={onExitDev}>Выйти из режима разработчика</button>

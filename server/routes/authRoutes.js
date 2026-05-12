@@ -6,6 +6,17 @@ const { auth } = require('../middleware/auth');
 
 const router = express.Router();
 
+function getDevEmails() {
+  return (process.env.DEV_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isDevEmail(email) {
+  return getDevEmails().includes(String(email || '').trim().toLowerCase());
+}
+
 function publicUser(user) {
   return {
     id: user.id,
@@ -16,6 +27,7 @@ function publicUser(user) {
     coverUrl: user.coverUrl || '',
     profileColor: user.profileColor || '',
     isBlocked: Boolean(user.isBlocked),
+    isDev: isDevEmail(user.email),
     createdAt: user.createdAt
   };
 }

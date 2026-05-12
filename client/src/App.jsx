@@ -104,6 +104,24 @@ export default function App() {
       .catch(() => { clearToken(); setUser(null); });
   }, []);
 
+  // Если текущая почта указана в DEV_EMAILS на backend, режим разработчика
+  // разблокируется автоматически, но сама панель не открывается без клика.
+  useEffect(() => {
+    if (!user?.isDev) return;
+
+    setDevUnlocked(true);
+
+    if (!getDevToken()) {
+      api('/api/dev/email-login', { method: 'POST', body: JSON.stringify({}) })
+        .then((data) => {
+          if (data.devToken) setDevToken(data.devToken);
+        })
+        .catch(() => {
+          // Если Render ещё не обновился, останется старый способ через пароль.
+        });
+    }
+  }, [user]);
+
   useEffect(() => {
     const onKey = (e) => {
       if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'd') setDevLogin(true);

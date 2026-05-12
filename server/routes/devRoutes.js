@@ -1,7 +1,7 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const db = require('../database');
-const { auth, devOnly } = require('../middleware/auth');
+const { auth, devOnly, isDevEmail } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { getConfig } = require('./siteRoutes');
 const { saveUploadedFile } = require('../utils/storage');
@@ -15,6 +15,15 @@ router.post('/login', (req, res) => {
     return res.json({ devAccess: true, devToken });
   }
   res.status(403).json({ message: 'Неверный пароль разработчика' });
+});
+
+router.post('/email-login', auth, (req, res) => {
+  if (!isDevEmail(req.user.email)) {
+    return res.status(403).json({ message: 'Эта почта не имеет доступа разработчика' });
+  }
+
+  const devToken = jwt.sign({ dev: true, role: 'developer', userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '8h' });
+  res.json({ devAccess: true, devToken, isDev: true });
 });
 
 router.get('/stats', auth, devOnly, (req, res) => {

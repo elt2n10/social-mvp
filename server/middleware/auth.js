@@ -1,6 +1,17 @@
 const jwt = require('jsonwebtoken');
 const db = require('../database');
 
+function getDevEmails() {
+  return (process.env.DEV_EMAILS || '')
+    .split(',')
+    .map(e => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+function isDevEmail(email) {
+  return getDevEmails().includes(String(email || '').trim().toLowerCase());
+}
+
 function auth(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -9,7 +20,7 @@ function auth(req, res, next) {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     const user = db.prepare('SELECT id, username, email, avatar, description, coverUrl, profileColor, isBlocked, createdAt FROM users WHERE id = ?').get(payload.id);
     if (!user) return res.status(401).json({ message: 'Пользователь не найден' });
-    req.user = user;
+    req.user = { ...user, isDev: isDevEmail(user.email) };
     next();
   } catch {
     res.status(401).json({ message: 'Неверный токен' });
@@ -22,6 +33,11 @@ function notBlocked(req, res, next) {
 }
 
 function devOnly(req, res, next) {
+  // Главная защита: backend сам проверяет, есть ли email пользователя в DEV_EMAILS.
+  // Это безопаснее, чем показывать dev-панель только через frontend.
+  if (req.user && isDevEmail(req.user.email)) return next();
+
+  // Второй способ: временный devToken после ввода DEV_PASSWORD.
   const token = req.headers['x-dev-token'];
   if (!token) return res.status(403).json({ message: 'Нет доступа разработчика' });
   try {
@@ -33,4 +49,4 @@ function devOnly(req, res, next) {
   }
 }
 
-module.exports = { auth, notBlocked, devOnly };
+module.exports = { auth, notBlocked, devOnly, isDevEmail };
