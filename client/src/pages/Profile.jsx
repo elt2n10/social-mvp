@@ -50,9 +50,33 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
   async function onPickPostImages(e) {
     setError('');
     try {
-      setPostImages(await preparePostImages(e.target.files));
+      const pickedFiles = Array.from(e.target.files || []);
+      const freeSlots = MAX_POST_IMAGES - postImages.length;
+      if (freeSlots <= 0) {
+        if (postFileRef.current) postFileRef.current.value = '';
+        return setError(`Можно добавить максимум ${MAX_POST_IMAGES} фото`);
+      }
+
+      const prepared = await preparePostImages(pickedFiles.slice(0, freeSlots));
+
+      setPostImages(prev => {
+        const merged = [...prev, ...prepared];
+        const unique = [];
+        const keys = new Set();
+
+        for (const img of merged) {
+          const key = `${img.name}-${img.size}-${img.lastModified}`;
+          if (!keys.has(key)) {
+            keys.add(key);
+            unique.push(img);
+          }
+        }
+
+        return unique.slice(0, MAX_POST_IMAGES);
+      });
+
+      if (postFileRef.current) postFileRef.current.value = '';
     } catch (err) {
-      setPostImages([]);
       if (postFileRef.current) postFileRef.current.value = '';
       setError(err.message);
     }
@@ -135,9 +159,9 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
         <h3>Новый пост</h3>
         <textarea maxLength={MAX_POST_CHARS} placeholder="Напиши пост прямо из профиля" value={postText} onChange={e=>setPostText(e.target.value.slice(0, MAX_POST_CHARS))} />
         <small className={postText.length >= MAX_POST_CHARS ? 'limitWarn' : ''}>{postText.length}/{MAX_POST_CHARS}</small>
-        {postImages.length > 0 && <div className="pickedFiles">{postImages.map((img, i)=><span key={i}>📷 {img.name}</span>)}</div>}
+        {postImages.length > 0 && <div className="pickedFiles">{postImages.map((img, i)=><span key={`${img.name}-${i}`}>📷 {img.name}<button type="button" className="miniRemove" onClick={() => setPostImages(prev => prev.filter((_, index) => index !== i))}>×</button></span>)}</div>}
         <div className="row responsiveRow">
-          <input ref={postFileRef} id="profilePostImage" className="hiddenFile" type="file" multiple accept="image/*" onChange={onPickPostImages}/>
+          <input ref={postFileRef} id="profilePostImage" className="hiddenFile" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" onChange={onPickPostImages}/>
           <label className="fileButton" htmlFor="profilePostImage">📷 {postImages.length ? `Фото: ${postImages.length}/${MAX_POST_IMAGES}` : 'До 10 фото'}</label>
           <button>Опубликовать</button>
         </div>

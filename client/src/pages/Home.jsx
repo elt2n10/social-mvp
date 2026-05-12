@@ -36,10 +36,33 @@ export default function Home({ openProfile }) {
   async function onPickImages(e) {
     setError('');
     try {
-      const prepared = await preparePostImages(e.target.files);
-      setImages(prepared);
+      const pickedFiles = Array.from(e.target.files || []);
+      const freeSlots = MAX_POST_IMAGES - images.length;
+      if (freeSlots <= 0) {
+        if (fileRef.current) fileRef.current.value = '';
+        return setError(`Можно добавить максимум ${MAX_POST_IMAGES} фото`);
+      }
+
+      const prepared = await preparePostImages(pickedFiles.slice(0, freeSlots));
+
+      setImages(prev => {
+        const merged = [...prev, ...prepared];
+        const unique = [];
+        const keys = new Set();
+
+        for (const img of merged) {
+          const key = `${img.name}-${img.size}-${img.lastModified}`;
+          if (!keys.has(key)) {
+            keys.add(key);
+            unique.push(img);
+          }
+        }
+
+        return unique.slice(0, MAX_POST_IMAGES);
+      });
+
+      if (fileRef.current) fileRef.current.value = '';
     } catch (err) {
-      setImages([]);
       if (fileRef.current) fileRef.current.value = '';
       setError(err.message);
     }
@@ -70,9 +93,9 @@ export default function Home({ openProfile }) {
       {error && <p className="error">{error}</p>}
       <textarea maxLength={MAX_POST_CHARS} placeholder="Что нового?" value={text} onChange={e=>setText(e.target.value.slice(0, MAX_POST_CHARS))} />
       <small className={text.length >= MAX_POST_CHARS ? 'limitWarn' : ''}>{text.length}/{MAX_POST_CHARS}</small>
-      {images.length > 0 && <div className="pickedFiles">{images.map((img, i) => <span key={i}>📷 {img.name}</span>)}</div>}
+      {images.length > 0 && <div className="pickedFiles">{images.map((img, i) => <span key={`${img.name}-${i}`}>📷 {img.name}<button type="button" className="miniRemove" onClick={() => setImages(prev => prev.filter((_, index) => index !== i))}>×</button></span>)}</div>}
       <div className="row responsiveRow">
-        <input ref={fileRef} id="postImageInput" className="hiddenFile" type="file" multiple accept="image/*" onChange={onPickImages}/>
+        <input ref={fileRef} id="postImageInput" className="hiddenFile" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" onChange={onPickImages}/>
         <label className="fileButton" htmlFor="postImageInput">📷 {images.length ? `Фото: ${images.length}/${MAX_POST_IMAGES}` : 'Добавить до 10 фото'}</label>
         <button>Опубликовать</button>
       </div>

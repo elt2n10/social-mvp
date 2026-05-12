@@ -11,3 +11,28 @@
 /* ===== Yved content/dev fix ===== */
 .devUnlockedBox{border:1px solid rgba(124,60,255,.45);background:linear-gradient(135deg,rgba(124,60,255,.14),rgba(42,167,255,.08));padding:14px;border-radius:20px}.devActions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.devActions button{padding:8px 10px}.devItem,.userRow{align-items:flex-start}.devItem span,.userRow span{flex:1}.devPanel .settingsGroup p{color:var(--muted);margin:0}.postImages{contain:layout paint}.postImages .postImage{display:block}.profilePublishGrid input[type=file],.composer input[type=file]{max-width:100%}
 @media(max-width:760px){.devActions{justify-content:stretch}.devActions button{flex:1}.devUnlockedBox .row{flex-direction:column;align-items:stretch}}
+
+
+/* Multi-photo picker chips */
+.pickedFiles span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.miniRemove {
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  padding: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.08);
+  color: #fff;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.miniRemove:hover {
+  background: rgba(255,80,110,.75);
+}
