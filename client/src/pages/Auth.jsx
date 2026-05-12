@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { api, setToken } from '../api/api';
+import { api, setToken, fileUrl } from '../api/api';
 
-export default function Auth({ onAuth }) {
+export default function Auth({ onAuth, config }) {
   const [mode, setMode] = useState('login');
   const [form, setForm] = useState({ username:'', email:'', login:'', password:'' });
   const [error, setError] = useState('');
@@ -16,9 +16,10 @@ export default function Auth({ onAuth }) {
   }
 
   return <div className="authPage">
-    <form className="authCard" onSubmit={submit}>
-      <h1>NOVAnet</h1>
-      <p>Закрытая MVP-соцсеть по invite-ссылке</p>
+    <form className="authCard pop" onSubmit={submit}>
+      <img className="authLogo" src={fileUrl(config?.logoUrl || '/yved-logo.png')} alt="Yved" />
+      <h1>{config?.siteName || 'Yved'}</h1>
+      <p>Соцсеть с постами, видео и сообщениями</p>
       {error && <div className="error">{error}</div>}
       {mode === 'register' && <>
         <input placeholder="Username" value={form.username} onChange={e=>setForm({...form, username:e.target.value})}/>

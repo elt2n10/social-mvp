@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../database');
 const { auth, notBlocked } = require('../middleware/auth');
+const { checkText } = require('../utils_moderation');
 const router = express.Router();
 
 router.get('/users/search', auth, (req, res) => {
@@ -29,21 +30,28 @@ router.get('/dialogs', auth, (req, res) => {
 
 router.get('/with/:userId', auth, (req, res) => {
   const other = Number(req.params.userId);
+  const beforeId = Number(req.query.beforeId || 0);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 80, 20), 120);
+  const params = beforeId ? [req.user.id, other, other, req.user.id, beforeId, limit] : [req.user.id, other, other, req.user.id, limit];
+  const whereBefore = beforeId ? 'AND id < ?' : '';
   const rows = db.prepare(`
     SELECT * FROM messages
-    WHERE (fromUserId = ? AND toUserId = ?) OR (fromUserId = ? AND toUserId = ?)
-    ORDER BY id ASC
-  `).all(req.user.id, other, other, req.user.id);
+    WHERE ((fromUserId = ? AND toUserId = ?) OR (fromUserId = ? AND toUserId = ?)) ${whereBefore}
+    ORDER BY id DESC LIMIT ?
+  `).all(...params).reverse();
   db.prepare('UPDATE messages SET isRead = 1 WHERE fromUserId = ? AND toUserId = ?').run(other, req.user.id);
   res.json(rows);
 });
 
 router.post('/send', auth, notBlocked, (req, res) => {
   const { toUserId, text } = req.body;
-  if (!toUserId || !String(text || '').trim()) return res.status(400).json({ message: 'Пустое сообщение' });
+  const clean = String(text || '').trim();
+  if (!toUserId || !clean) return res.status(400).json({ message: 'Пустое сообщение' });
+  const moderation = checkText(clean);
+  if (!moderation.ok) return res.status(400).json({ message: 'Сообщение не отправлено: ' + moderation.reason });
   const user = db.prepare('SELECT id, isBlocked FROM users WHERE id = ?').get(toUserId);
   if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
-  const r = db.prepare('INSERT INTO messages (fromUserId, toUserId, text) VALUES (?, ?, ?)').run(req.user.id, toUserId, text.trim());
+  const r = db.prepare('INSERT INTO messages (fromUserId, toUserId, text) VALUES (?, ?, ?)').run(req.user.id, toUserId, clean.slice(0, 2000));
   res.json({ id: r.lastInsertRowid });
 });
 

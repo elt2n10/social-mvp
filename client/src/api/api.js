@@ -23,18 +23,14 @@ export async function api(path, options = {}) {
     headers['Content-Type'] = 'application/json';
   }
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
+  if (token) headers.Authorization = `Bearer ${token}`;
+  if (localStorage.getItem('devAccess') === 'true') headers['x-dev-access'] = 'true';
 
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers
-  });
-
+  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    if (response.status === 401) clearToken();
     throw new Error(data.message || 'Ошибка запроса');
   }
 
@@ -43,6 +39,7 @@ export async function api(path, options = {}) {
 
 export function fileUrl(path) {
   if (!path) return '';
-  if (path.startsWith('http')) return path;
+  if (path.startsWith('http') || path.startsWith('data:')) return path;
+  if (path.startsWith('/yved') || path.startsWith('/favicon')) return path;
   return `${API_URL}${path}`;
 }

@@ -1,39 +1,74 @@
-import { useEffect, useState } from 'react';
-import { api } from '../api/api';
+import React, { useEffect, useState } from 'react';
+import { api, fileUrl } from '../api/api';
 
-export default function DevPanel({ open, onClose }) {
+export default function DevPanel({ open, onClose, config, onConfig }) {
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
-  const [postId, setPostId] = useState('');
-  const [videoId, setVideoId] = useState('');
+  const [posts, setPosts] = useState([]);
+  const [videos, setVideos] = useState([]);
+  const [site, setSite] = useState(config || {});
+  const [logo, setLogo] = useState(null);
+  const [favicon, setFavicon] = useState(null);
   const [error, setError] = useState('');
 
   async function load() {
     try {
+      setError('');
       setStats(await api('/api/dev/stats'));
       setUsers(await api('/api/dev/users'));
+      setPosts(await api('/api/dev/recent/posts'));
+      setVideos(await api('/api/dev/recent/videos'));
+      const cfg = await api('/api/dev/config');
+      setSite(cfg); onConfig?.(cfg);
     } catch (e) { setError(e.message); }
   }
   useEffect(() => { if (open) load(); }, [open]);
   if (!open) return null;
 
   async function action(fn) { try { await fn(); await load(); } catch(e) { setError(e.message); } }
+  function setField(key, value) { setSite(s => ({ ...s, [key]: value })); }
+
+  async function saveConfig(e) {
+    e.preventDefault();
+    const fd = new FormData();
+    ['siteName','accentColor','secondColor','backgroundColor','cardColor','buttonRadius','soundsEnabled','animationsEnabled','inviteEnabled'].forEach(k => fd.append(k, site[k]));
+    if (logo) fd.append('logo', logo);
+    if (favicon) fd.append('favicon', favicon);
+    const updated = await api('/api/dev/config', { method:'PUT', body: fd });
+    setLogo(null); setFavicon(null); setSite(updated); onConfig?.(updated);
+  }
 
   return <div className="modalBackdrop">
-    <div className="modal big">
-      <div className="row between"><h2>Панель разработчика</h2><button onClick={onClose}>Закрыть</button></div>
+    <div className="modal big devPanel">
+      <div className="row between"><h2>Панель разработчика Yved</h2><button onClick={onClose}>Закрыть</button></div>
       {error && <p className="error">{error}</p>}
       <div className="stats">
         <div><b>{stats?.users ?? 0}</b><span>пользователей</span></div>
         <div><b>{stats?.posts ?? 0}</b><span>постов</span></div>
         <div><b>{stats?.videos ?? 0}</b><span>видео</span></div>
+        <div><b>{stats?.hiddenPosts ?? 0}</b><span>скрытых постов</span></div>
+        <div><b>{stats?.hiddenVideos ?? 0}</b><span>скрытых видео</span></div>
+        <div><b>{stats?.reports ?? 0}</b><span>жалоб</span></div>
       </div>
-      <div className="devTools">
-        <input placeholder="ID поста" value={postId} onChange={e=>setPostId(e.target.value)} />
-        <button onClick={()=>action(()=>api(`/api/dev/posts/${postId}`, { method:'DELETE' }))}>Удалить пост</button>
-        <input placeholder="ID видео" value={videoId} onChange={e=>setVideoId(e.target.value)} />
-        <button onClick={()=>action(()=>api(`/api/dev/videos/${videoId}`, { method:'DELETE' }))}>Удалить видео</button>
-      </div>
+
+      <form className="card settingsGroup" onSubmit={saveConfig}>
+        <h3>Изменить сайт без нового кода</h3>
+        <input value={site.siteName || ''} onChange={e=>setField('siteName', e.target.value)} placeholder="Название сайта" />
+        <div className="colorGrid">
+          <label>Акцент<input type="color" value={site.accentColor || '#7c3cff'} onChange={e=>setField('accentColor', e.target.value)} /></label>
+          <label>Второй цвет<input type="color" value={site.secondColor || '#2aa7ff'} onChange={e=>setField('secondColor', e.target.value)} /></label>
+          <label>Фон<input type="color" value={site.backgroundColor || '#090a10'} onChange={e=>setField('backgroundColor', e.target.value)} /></label>
+          <label>Карточки<input type="color" value={site.cardColor || '#11131d'} onChange={e=>setField('cardColor', e.target.value)} /></label>
+        </div>
+        <label>Скругление кнопок<input type="range" min="4" max="28" value={Number(site.buttonRadius || 14)} onChange={e=>setField('buttonRadius', e.target.value)} /></label>
+        <label>Лого сайта<input type="file" accept="image/*" onChange={e=>setLogo(e.target.files[0])} /></label>
+        <label>Иконка вкладки<input type="file" accept="image/*" onChange={e=>setFavicon(e.target.files[0])} /></label>
+        <label className="checkLine"><input type="checkbox" checked={site.soundsEnabled === true || site.soundsEnabled === 'true'} onChange={e=>setField('soundsEnabled', e.target.checked)} /> Звуки</label>
+        <label className="checkLine"><input type="checkbox" checked={site.animationsEnabled === true || site.animationsEnabled === 'true'} onChange={e=>setField('animationsEnabled', e.target.checked)} /> Анимации</label>
+        <label className="checkLine"><input type="checkbox" checked={site.inviteEnabled === true || site.inviteEnabled === 'true'} onChange={e=>setField('inviteEnabled', e.target.checked)} /> Закрыть сайт invite-ссылкой</label>
+        <button>Сохранить настройки сайта</button>
+      </form>
+
       <h3>Пользователи</h3>
       <div className="userList">
         {users.map(u => <div className="userRow" key={u.id}>
@@ -41,6 +76,13 @@ export default function DevPanel({ open, onClose }) {
           <button onClick={()=>action(()=>api(`/api/dev/users/${u.id}/${u.isBlocked ? 'unblock':'block'}`, { method:'PUT' }))}>{u.isBlocked ? 'Разблокировать' : 'Заблокировать'}</button>
         </div>)}
       </div>
+
+      <h3>Последние посты</h3>
+      <div className="devList">{posts.map(p => <div className="devItem" key={p.id}><span>#{p.id} @{p.authorName} {p.isHidden ? 'скрыт' : ''}<small className="safeText">{p.text || p.imageUrl}</small></span><button onClick={()=>action(()=>api(`/api/dev/posts/${p.id}/${p.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{p.isHidden ? 'Вернуть' : 'Скрыть'}</button></div>)}</div>
+
+      <h3>Последние видео</h3>
+      <div className="devList">{videos.map(v => <div className="devItem" key={v.id}><span>#{v.id} @{v.authorName} {v.isHidden ? 'скрыто' : ''}<small className="safeText">{v.description || v.videoUrl}</small></span><button onClick={()=>action(()=>api(`/api/dev/videos/${v.id}/${v.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{v.isHidden ? 'Вернуть' : 'Скрыть'}</button></div>)}</div>
+
       <button className="danger" onClick={()=>{localStorage.removeItem('devAccess'); onClose();}}>Выйти из режима разработчика</button>
     </div>
   </div>;

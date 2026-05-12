@@ -7,7 +7,7 @@ function auth(req, res, next) {
   if (!token) return res.status(401).json({ message: 'Нужна авторизация' });
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    const user = db.prepare('SELECT id, username, email, avatar, description, isBlocked, createdAt FROM users WHERE id = ?').get(payload.id);
+    const user = db.prepare('SELECT id, username, email, avatar, description, coverUrl, profileColor, isBlocked, createdAt FROM users WHERE id = ?').get(payload.id);
     if (!user) return res.status(401).json({ message: 'Пользователь не найден' });
     req.user = user;
     next();

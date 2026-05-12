@@ -13,12 +13,16 @@ function publicUser(user) {
     email: user.email,
     avatar: user.avatar,
     description: user.description,
+    coverUrl: user.coverUrl || '',
+    profileColor: user.profileColor || '',
     isBlocked: Boolean(user.isBlocked),
     createdAt: user.createdAt
   };
 }
 
 router.post('/check-invite', (req, res) => {
+  const enabled = db.prepare("SELECT value FROM site_config WHERE key = 'inviteEnabled'").get()?.value === 'true';
+  if (!enabled) return res.json({ ok: true });
   const { invite } = req.body;
   res.json({ ok: invite === process.env.INVITE_CODE });
 });
@@ -26,13 +30,15 @@ router.post('/check-invite', (req, res) => {
 router.post('/register', async (req, res) => {
   const { username, email, password } = req.body;
   if (!username || !email || !password) return res.status(400).json({ message: 'Заполни все поля' });
+  if (!/^[a-zA-Z0-9_а-яА-ЯёЁ.-]{3,24}$/.test(username)) return res.status(400).json({ message: 'Username 3-24 символа, без странных знаков' });
+  if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ message: 'Некорректный email' });
   if (password.length < 6) return res.status(400).json({ message: 'Пароль минимум 6 символов' });
   const exists = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(username, email);
   if (exists) return res.status(409).json({ message: 'Такой username или email уже есть' });
   const passwordHash = await bcrypt.hash(password, 10);
   const result = db.prepare('INSERT INTO users (username, email, passwordHash) VALUES (?, ?, ?)').run(username, email, passwordHash);
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '14d' });
+  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
   res.json({ token, user: publicUser(user) });
 });
 
@@ -43,7 +49,7 @@ router.post('/login', async (req, res) => {
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return res.status(401).json({ message: 'Неверный логин или пароль' });
   if (user.isBlocked) return res.status(403).json({ message: 'Аккаунт заблокирован' });
-  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '14d' });
+  const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '30d' });
   res.json({ token, user: publicUser(user) });
 });
 

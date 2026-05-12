@@ -1,5 +1,6 @@
 import React from 'react';
 import { Home, MessageCircle, PlaySquare, Settings, User } from 'lucide-react';
+import { fileUrl } from '../api/api';
 
 const items = [
   ['home', 'Главная', Home],
@@ -9,19 +10,23 @@ const items = [
   ['settings', 'Настройки', Settings]
 ];
 
-export default function Layout({ page, setPage, user, children }) {
+export default function Layout({ page, setPage, user, children, config, openMyProfile }) {
+  const logo = config?.logoUrl || '/yved-logo.png';
   return <div className="appShell">
     <aside className="sidebar">
-      <div className="brand">NOVA<span>net</span></div>
-      <div className="miniProfile">
-        <div className="avatar">{user?.username?.[0]?.toUpperCase()}</div>
+      <button className="brand brandButton" onClick={() => setPage('home')}>
+        <img src={fileUrl(logo)} alt="Yved" />
+        <span>{config?.siteName || 'Yved'}</span>
+      </button>
+      <button className="miniProfile cleanButton" onClick={openMyProfile}>
+        {user?.avatar ? <img className="avatarImage" src={fileUrl(user.avatar)} /> : <div className="avatar">{user?.username?.[0]?.toUpperCase()}</div>}
         <div><b>{user?.username}</b><small>{user?.email}</small></div>
-      </div>
+      </button>
       <nav>
         {items.map(([key, label, Icon]) => <button key={key} className={page === key ? 'active' : ''} onClick={() => setPage(key)}><Icon size={19}/>{label}</button>)}
       </nav>
     </aside>
-    <main className="content">{children}</main>
+    <main className="content pageFade">{children}</main>
     <nav className="bottomNav">
       {items.map(([key, label, Icon]) => <button key={key} className={page === key ? 'active' : ''} onClick={() => setPage(key)}><Icon size={20}/><small>{label}</small></button>)}
     </nav>
