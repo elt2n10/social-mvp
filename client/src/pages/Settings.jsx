@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api, clearToken } from '../api/api';
 
-export default function Settings({ onLogout, onDevSecret, config, setConfig }) {
+export default function Settings({ onLogout, onDevSecret, devUnlocked, onOpenDevPanel, onExitDev, config, setConfig }) {
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [msg, setMsg] = useState('');
@@ -12,7 +12,7 @@ export default function Settings({ onLogout, onDevSecret, config, setConfig }) {
     const reset = setTimeout(() => setTapCount(0), 2200);
     if (tapCount >= 10) { setTapCount(0); onDevSecret(); }
     return () => clearTimeout(reset);
-  }, [tapCount]);
+  }, [tapCount, onDevSecret]);
 
   function updateLocal(key, value) {
     const next = { ...localTheme, [key]: value };
@@ -33,6 +33,16 @@ export default function Settings({ onLogout, onDevSecret, config, setConfig }) {
   return <section><h1>Настройки</h1>
     <div className="card settings">
       <button onClick={()=>{clearToken(); onLogout();}}>Выйти из аккаунта</button>
+
+      {devUnlocked && <div className="settingsGroup devUnlockedBox">
+        <h3>Режим разработчика</h3>
+        <p>Режим разблокирован. Панель не открывается сама — запускай её отсюда.</p>
+        <div className="row responsiveRow">
+          <button type="button" onClick={onOpenDevPanel}>Открыть меню разработчика</button>
+          <button type="button" className="ghost" onClick={onExitDev}>Выйти из режима разработчика</button>
+        </div>
+      </div>}
+
       <form onSubmit={changePassword} className="settingsGroup">
         <h3>Изменить пароль</h3>{msg && <p>{msg}</p>}
         <input type="password" placeholder="Старый пароль" value={oldPassword} onChange={e=>setOldPassword(e.target.value)}/>
@@ -49,7 +59,7 @@ export default function Settings({ onLogout, onDevSecret, config, setConfig }) {
       </div>
       <div className="settingsGroup"><h3>Безопасность</h3><p>Если аккаунт заблокируют, посты, сообщения и загрузка видео будут недоступны.</p></div>
       <button className="danger" onClick={deleteAccount}>Удалить аккаунт</button>
-      <button className="secretDot" aria-label="" onClick={() => setTapCount(v => v + 1)} type="button" />
+      <button className="secretDot" title="" aria-label="" onClick={() => setTapCount(v => v + 1)} type="button" />
     </div>
   </section>;
 }

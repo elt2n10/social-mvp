@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api, fileUrl } from '../api/api';
 
-export default function DevPanel({ open, onClose, config, onConfig }) {
+export default function DevPanel({ open, onClose, onExitDev, config, onConfig }) {
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [posts, setPosts] = useState([]);
@@ -25,7 +25,7 @@ export default function DevPanel({ open, onClose, config, onConfig }) {
   useEffect(() => { if (open) load(); }, [open]);
   if (!open) return null;
 
-  async function action(fn) { try { await fn(); await load(); } catch(e) { setError(e.message); } }
+  async function action(fn) { try { setError(''); await fn(); await load(); } catch(e) { setError(e.message); } }
   function setField(key, value) { setSite(s => ({ ...s, [key]: value })); }
 
   async function saveConfig(e) {
@@ -36,6 +36,17 @@ export default function DevPanel({ open, onClose, config, onConfig }) {
     if (favicon) fd.append('favicon', favicon);
     const updated = await api('/api/dev/config', { method:'PUT', body: fd });
     setLogo(null); setFavicon(null); setSite(updated); onConfig?.(updated);
+  }
+
+  async function downloadBackup() {
+    const data = await api('/api/dev/backup');
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `yved-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   return <div className="modalBackdrop">
@@ -70,21 +81,43 @@ export default function DevPanel({ open, onClose, config, onConfig }) {
         <button>Сохранить настройки сайта</button>
       </form>
 
-      <h3>Пользователи</h3>
+      <div className="card settingsGroup">
+        <h3>Сохранение контента</h3>
+        <p>Скачай резервную копию перед крупными обновлениями. Для постоянного хранения фото/видео можно подключить Cloudinary через переменные Render.</p>
+        <button onClick={() => action(downloadBackup)}>Скачать backup JSON</button>
+      </div>
+
+      <h3>Пользователи, аватарки и обложки</h3>
       <div className="userList">
         {users.map(u => <div className="userRow" key={u.id}>
           <span>#{u.id} <b>{u.username}</b> {u.isBlocked ? '🚫' : ''}<small>{u.email}</small></span>
-          <button onClick={()=>action(()=>api(`/api/dev/users/${u.id}/${u.isBlocked ? 'unblock':'block'}`, { method:'PUT' }))}>{u.isBlocked ? 'Разблокировать' : 'Заблокировать'}</button>
+          <div className="devActions">
+            {u.avatar && <button className="ghost" onClick={()=>action(()=>api(`/api/dev/users/${u.id}/avatar/clear`, { method:'PUT' }))}>Убрать аватар</button>}
+            {u.coverUrl && <button className="ghost" onClick={()=>action(()=>api(`/api/dev/users/${u.id}/cover/clear`, { method:'PUT' }))}>Убрать обложку</button>}
+            <button onClick={()=>action(()=>api(`/api/dev/users/${u.id}/${u.isBlocked ? 'unblock':'block'}`, { method:'PUT' }))}>{u.isBlocked ? 'Разблокировать' : 'Заблокировать'}</button>
+          </div>
         </div>)}
       </div>
 
       <h3>Последние посты</h3>
-      <div className="devList">{posts.map(p => <div className="devItem" key={p.id}><span>#{p.id} @{p.authorName} {p.isHidden ? 'скрыт' : ''}<small className="safeText">{p.text || p.imageUrl}</small></span><button onClick={()=>action(()=>api(`/api/dev/posts/${p.id}/${p.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{p.isHidden ? 'Вернуть' : 'Скрыть'}</button></div>)}</div>
+      <div className="devList">{posts.map(p => <div className="devItem" key={p.id}>
+        <span>#{p.id} @{p.authorName} {p.isHidden ? 'скрыт' : ''}<small className="safeText">{p.text || (p.imageUrls?.length ? `Фото: ${p.imageUrls.length}` : p.imageUrl)}</small></span>
+        <div className="devActions">
+          <button onClick={()=>action(()=>api(`/api/dev/posts/${p.id}/${p.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{p.isHidden ? 'Вернуть' : 'Скрыть'}</button>
+          <button className="danger" onClick={()=>{ if(confirm('Удалить пост навсегда?')) action(()=>api(`/api/dev/posts/${p.id}`, { method:'DELETE' })); }}>Удалить</button>
+        </div>
+      </div>)}</div>
 
       <h3>Последние видео</h3>
-      <div className="devList">{videos.map(v => <div className="devItem" key={v.id}><span>#{v.id} @{v.authorName} {v.isHidden ? 'скрыто' : ''}<small className="safeText">{v.description || v.videoUrl}</small></span><button onClick={()=>action(()=>api(`/api/dev/videos/${v.id}/${v.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{v.isHidden ? 'Вернуть' : 'Скрыть'}</button></div>)}</div>
+      <div className="devList">{videos.map(v => <div className="devItem" key={v.id}>
+        <span>#{v.id} @{v.authorName} {v.isHidden ? 'скрыто' : ''}<small className="safeText">{v.description || v.videoUrl}</small></span>
+        <div className="devActions">
+          <button onClick={()=>action(()=>api(`/api/dev/videos/${v.id}/${v.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{v.isHidden ? 'Вернуть' : 'Скрыть'}</button>
+          <button className="danger" onClick={()=>{ if(confirm('Удалить видео навсегда?')) action(()=>api(`/api/dev/videos/${v.id}`, { method:'DELETE' })); }}>Удалить</button>
+        </div>
+      </div>)}</div>
 
-      <button className="danger" onClick={()=>{localStorage.removeItem('devAccess'); onClose();}}>Выйти из режима разработчика</button>
+      <button className="danger" onClick={onExitDev}>Выйти из режима разработчика</button>
     </div>
   </div>;
 }

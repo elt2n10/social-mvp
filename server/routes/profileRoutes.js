@@ -3,6 +3,7 @@ const db = require('../database');
 const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { checkText } = require('../utils_moderation');
+const { saveUploadedFile } = require('../utils/storage');
 const router = express.Router();
 
 function profilePayload(user, meId) {
@@ -12,16 +13,7 @@ function profilePayload(user, meId) {
   const followingCount = db.prepare('SELECT COUNT(*) count FROM follows WHERE followerId = ?').get(id).count;
   const isFollowing = !isMe && Boolean(db.prepare('SELECT 1 FROM follows WHERE followerId = ? AND followingId = ?').get(meId, id));
   const followsMe = !isMe && Boolean(db.prepare('SELECT 1 FROM follows WHERE followerId = ? AND followingId = ?').get(id, meId));
-  return {
-    ...user,
-    isBlocked: Boolean(user.isBlocked),
-    isMe,
-    followersCount,
-    followingCount,
-    isFollowing,
-    followsMe,
-    isFriend: isFollowing && followsMe
-  };
+  return { ...user, isBlocked: Boolean(user.isBlocked), isMe, followersCount, followingCount, isFollowing, followsMe, isFriend: isFollowing && followsMe };
 }
 
 router.get('/:id', auth, (req, res) => {
@@ -46,21 +38,23 @@ router.delete('/:id/follow', auth, notBlocked, (req, res) => {
   res.json({ ok: true, isFollowing: false, isFriend: false });
 });
 
-router.put('/me', auth, notBlocked, upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), (req, res) => {
-  const username = (req.body.username || req.user.username).trim();
-  const description = req.body.description ?? req.user.description;
-  const profileColor = req.body.profileColor ?? req.user.profileColor ?? '';
-  const moderation = checkText(description);
-  if (!moderation.ok) return res.status(400).json({ message: 'Описание не сохранено: ' + moderation.reason });
-  const avatar = req.files?.avatar?.[0] ? `/uploads/${req.files.avatar[0].filename}` : req.user.avatar;
-  const coverUrl = req.files?.cover?.[0] ? `/uploads/${req.files.cover[0].filename}` : req.user.coverUrl;
+router.put('/me', auth, notBlocked, upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), async (req, res, next) => {
   try {
+    const username = (req.body.username || req.user.username).trim();
+    const description = req.body.description ?? req.user.description;
+    const profileColor = req.body.profileColor ?? req.user.profileColor ?? '';
+    const moderation = checkText(description);
+    if (!moderation.ok) return res.status(400).json({ message: 'Описание не сохранено: ' + moderation.reason });
+    const avatar = req.files?.avatar?.[0] ? await saveUploadedFile(req.files.avatar[0], 'yved/avatars') : req.user.avatar;
+    const coverUrl = req.files?.cover?.[0] ? await saveUploadedFile(req.files.cover[0], 'yved/covers') : req.user.coverUrl;
+
     db.prepare('UPDATE users SET username = ?, description = ?, avatar = ?, coverUrl = ?, profileColor = ? WHERE id = ?')
       .run(username, description.slice(0, 800), avatar, coverUrl, profileColor, req.user.id);
     const user = db.prepare('SELECT id, username, email, avatar, description, coverUrl, profileColor, isBlocked, createdAt FROM users WHERE id = ?').get(req.user.id);
     res.json(profilePayload(user, req.user.id));
-  } catch {
-    res.status(409).json({ message: 'Такое имя уже занято' });
+  } catch (e) {
+    if (e && e.code === 'SQLITE_CONSTRAINT_UNIQUE') return res.status(409).json({ message: 'Такое имя уже занято' });
+    next(e);
   }
 });
 

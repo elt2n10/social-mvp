@@ -3,6 +3,7 @@ const db = require('../database');
 const { auth, devOnly } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { getConfig } = require('./siteRoutes');
+const { saveUploadedFile } = require('../utils/storage');
 const router = express.Router();
 
 router.post('/login', (req, res) => {
@@ -24,17 +25,18 @@ router.get('/stats', auth, devOnly, (req, res) => {
 });
 
 router.get('/users', auth, devOnly, (req, res) => {
-  const users = db.prepare('SELECT id, username, email, avatar, description, isBlocked, createdAt FROM users ORDER BY id DESC LIMIT 200').all()
+  const users = db.prepare('SELECT id, username, email, avatar, coverUrl, description, isBlocked, createdAt FROM users ORDER BY id DESC LIMIT 200').all()
     .map(u => ({ ...u, isBlocked: Boolean(u.isBlocked) }));
   res.json(users);
 });
 
 router.get('/recent/posts', auth, devOnly, (req, res) => {
   const rows = db.prepare(`
-    SELECT p.id, p.text, p.imageUrl, p.isHidden, p.createdAt, u.username authorName
+    SELECT p.id, p.text, p.imageUrl, p.isHidden, p.createdAt, u.username authorName,
+      COALESCE((SELECT json_group_array(imageUrl) FROM (SELECT pi.imageUrl FROM post_images pi WHERE pi.postId = p.id ORDER BY pi.position ASC)), '[]') imageUrls
     FROM posts p JOIN users u ON u.id = p.authorId
-    ORDER BY p.id DESC LIMIT 30
-  `).all().map(p => ({ ...p, isHidden: Boolean(p.isHidden) }));
+    ORDER BY p.id DESC LIMIT 40
+  `).all().map(p => ({ ...p, isHidden: Boolean(p.isHidden), imageUrls: JSON.parse(p.imageUrls || '[]') }));
   res.json(rows);
 });
 
@@ -42,7 +44,7 @@ router.get('/recent/videos', auth, devOnly, (req, res) => {
   const rows = db.prepare(`
     SELECT v.id, v.description, v.videoUrl, v.isHidden, v.createdAt, u.username authorName
     FROM videos v JOIN users u ON u.id = v.authorId
-    ORDER BY v.id DESC LIMIT 30
+    ORDER BY v.id DESC LIMIT 40
   `).all().map(v => ({ ...v, isHidden: Boolean(v.isHidden) }));
   res.json(rows);
 });
@@ -58,8 +60,7 @@ router.put('/posts/:id/restore', auth, devOnly, (req, res) => {
 });
 
 router.delete('/posts/:id', auth, devOnly, (req, res) => {
-  // В MVP безопаснее скрывать, а не удалять навсегда.
-  db.prepare('UPDATE posts SET isHidden = 1 WHERE id = ?').run(req.params.id);
+  db.prepare('DELETE FROM posts WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
@@ -74,7 +75,7 @@ router.put('/videos/:id/restore', auth, devOnly, (req, res) => {
 });
 
 router.delete('/videos/:id', auth, devOnly, (req, res) => {
-  db.prepare('UPDATE videos SET isHidden = 1 WHERE id = ?').run(req.params.id);
+  db.prepare('DELETE FROM videos WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
 });
 
@@ -88,22 +89,49 @@ router.put('/users/:id/unblock', auth, devOnly, (req, res) => {
   res.json({ ok: true });
 });
 
+router.put('/users/:id/avatar/clear', auth, devOnly, (req, res) => {
+  db.prepare("UPDATE users SET avatar = '' WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+router.put('/users/:id/cover/clear', auth, devOnly, (req, res) => {
+  db.prepare("UPDATE users SET coverUrl = '' WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+router.get('/backup', auth, devOnly, (req, res) => {
+  const backup = {
+    exportedAt: new Date().toISOString(),
+    users: db.prepare('SELECT id, username, email, avatar, description, coverUrl, profileColor, isBlocked, createdAt FROM users').all(),
+    posts: db.prepare('SELECT * FROM posts').all(),
+    post_images: db.prepare('SELECT * FROM post_images').all(),
+    comments: db.prepare('SELECT * FROM comments').all(),
+    videos: db.prepare('SELECT * FROM videos').all(),
+    video_comments: db.prepare('SELECT * FROM video_comments').all(),
+    follows: db.prepare('SELECT * FROM follows').all(),
+    site_config: db.prepare('SELECT * FROM site_config').all()
+  };
+  res.json(backup);
+});
+
 router.get('/config', auth, devOnly, (req, res) => {
   res.json(getConfig());
 });
 
-router.put('/config', auth, devOnly, upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'favicon', maxCount: 1 }]), (req, res) => {
-  const allowedKeys = [
-    'siteName', 'accentColor', 'secondColor', 'backgroundColor', 'cardColor',
-    'buttonRadius', 'soundsEnabled', 'animationsEnabled', 'inviteEnabled', 'stickers'
-  ];
-  const update = db.prepare('INSERT INTO site_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
-  for (const key of allowedKeys) {
-    if (req.body[key] !== undefined) update.run(key, String(req.body[key]));
-  }
-  if (req.files?.logo?.[0]) update.run('logoUrl', `/uploads/${req.files.logo[0].filename}`);
-  if (req.files?.favicon?.[0]) update.run('faviconUrl', `/uploads/${req.files.favicon[0].filename}`);
-  res.json(getConfig());
+router.put('/config', auth, devOnly, upload.fields([{ name: 'logo', maxCount: 1 }, { name: 'favicon', maxCount: 1 }]), async (req, res, next) => {
+  try {
+    const allowedKeys = [
+      'siteName', 'accentColor', 'secondColor', 'backgroundColor', 'cardColor',
+      'buttonRadius', 'soundsEnabled', 'animationsEnabled', 'inviteEnabled', 'stickers'
+    ];
+    const update = db.prepare('INSERT INTO site_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
+    for (const key of allowedKeys) {
+      if (req.body[key] !== undefined) update.run(key, String(req.body[key]));
+    }
+    if (req.files?.logo?.[0]) update.run('logoUrl', await saveUploadedFile(req.files.logo[0], 'yved/site'));
+    if (req.files?.favicon?.[0]) update.run('faviconUrl', await saveUploadedFile(req.files.favicon[0], 'yved/site'));
+    res.json(getConfig());
+  } catch(e) { next(e); }
 });
 
 module.exports = router;

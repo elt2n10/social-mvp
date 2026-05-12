@@ -45,7 +45,10 @@ export default function App() {
   const [page, setPage] = useState('home');
   const [profileId, setProfileId] = useState(null);
   const [devLogin, setDevLogin] = useState(false);
-  const [devPanel, setDevPanel] = useState(localStorage.getItem('devAccess') === 'true');
+  // Если режим разработчика уже был разблокирован, сайт НЕ открывает панель автоматически.
+  // В настройках появятся кнопки меню разработчика и выхода из режима.
+  const [devUnlocked, setDevUnlocked] = useState(localStorage.getItem('devAccess') === 'true');
+  const [devPanel, setDevPanel] = useState(false);
   const [devPassword, setDevPassword] = useState('');
   const [error, setError] = useState('');
   const [config, setConfig] = useState(defaultConfig);
@@ -129,7 +132,7 @@ export default function App() {
     try {
       await api('/api/dev/login', { method: 'POST', body: JSON.stringify({ password: devPassword }) });
       localStorage.setItem('devAccess', 'true');
-      setDevLogin(false); setDevPanel(true); setDevPassword('');
+      setDevLogin(false); setDevUnlocked(true); setDevPanel(true); setDevPassword('');
     } catch (err) { setError(err.message); }
   }
 
@@ -146,7 +149,7 @@ export default function App() {
       {page === 'videos' && <Videos openProfile={openProfile} />}
       {page === 'messages' && <Messages me={user} openProfile={openProfile} config={config} />}
       {page === 'profile' && <Profile user={user} setUser={setUser} profileId={profileId || user.id} openMessages={() => goPage('messages')} />}
-      {page === 'settings' && <Settings onLogout={logout} onDevSecret={() => setDevLogin(true)} config={config} setConfig={(cfg) => { const merged = { ...config, ...cfg }; setConfig(merged); applyConfig(merged); }} />}
+      {page === 'settings' && <Settings onLogout={logout} onDevSecret={() => setDevLogin(true)} devUnlocked={devUnlocked} onOpenDevPanel={() => setDevPanel(true)} onExitDev={() => { localStorage.removeItem('devAccess'); setDevUnlocked(false); setDevPanel(false); }} config={config} setConfig={(cfg) => { const merged = { ...config, ...cfg }; setConfig(merged); applyConfig(merged); }} />}
     </Layout>
 
     {devLogin && <div className="modalBackdrop">
@@ -156,6 +159,6 @@ export default function App() {
       </form>
     </div>}
 
-    <DevPanel open={devPanel} onClose={() => setDevPanel(false)} config={config} onConfig={(cfg) => { const merged = { ...config, ...cfg }; setConfig(merged); applyConfig(merged); }} />
+    <DevPanel open={devPanel} onClose={() => setDevPanel(false)} onExitDev={() => { localStorage.removeItem('devAccess'); setDevUnlocked(false); setDevPanel(false); }} config={config} onConfig={(cfg) => { const merged = { ...config, ...cfg }; setConfig(merged); applyConfig(merged); }} />
   </>;
 }

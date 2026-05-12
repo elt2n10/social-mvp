@@ -3,6 +3,7 @@ const db = require('../database');
 const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { checkText } = require('../utils_moderation');
+const { saveUploadedFile } = require('../utils/storage');
 const router = express.Router();
 const MAX_VIDEO_SECONDS = 60;
 
@@ -27,20 +28,23 @@ router.get('/', auth, (req, res) => {
   res.json(videos);
 });
 
-router.post('/', auth, notBlocked, upload.single('video'), (req, res) => {
-  if (!req.file) return res.status(400).json({ message: 'Загрузи видео' });
-  if (!req.file.mimetype.startsWith('video/')) return res.status(400).json({ message: 'Нужен видеофайл' });
+router.post('/', auth, notBlocked, upload.single('video'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Загрузи видео' });
+    if (!req.file.mimetype.startsWith('video/')) return res.status(400).json({ message: 'Нужен видеофайл' });
 
-  const duration = Number(req.body.duration || 0);
-  if (duration && duration > MAX_VIDEO_SECONDS + 0.25) {
-    return res.status(400).json({ message: 'Видео должно быть не длиннее 1 минуты' });
-  }
+    const duration = Number(req.body.duration || 0);
+    if (duration && duration > MAX_VIDEO_SECONDS + 0.25) {
+      return res.status(400).json({ message: 'Видео должно быть не длиннее 1 минуты' });
+    }
 
-  const description = req.body.description || '';
-  const moderation = checkText(description);
-  if (!moderation.ok) return res.status(400).json({ message: 'Видео не опубликовано: ' + moderation.reason });
-  const r = db.prepare('INSERT INTO videos (authorId, videoUrl, description, moderationStatus) VALUES (?, ?, ?, ?)').run(req.user.id, `/uploads/${req.file.filename}`, description.slice(0, 600), 'approved');
-  res.json({ id: r.lastInsertRowid });
+    const description = req.body.description || '';
+    const moderation = checkText(description);
+    if (!moderation.ok) return res.status(400).json({ message: 'Видео не опубликовано: ' + moderation.reason });
+    const videoUrl = await saveUploadedFile(req.file, 'yved/videos');
+    const r = db.prepare('INSERT INTO videos (authorId, videoUrl, description, moderationStatus) VALUES (?, ?, ?, ?)').run(req.user.id, videoUrl, description.slice(0, 600), 'approved');
+    res.json({ id: r.lastInsertRowid });
+  } catch(e) { next(e); }
 });
 
 router.post('/:id/like', auth, notBlocked, (req, res) => {
