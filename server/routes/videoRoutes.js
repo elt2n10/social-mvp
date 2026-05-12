@@ -4,6 +4,7 @@ const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { checkText } = require('../utils_moderation');
 const router = express.Router();
+const MAX_VIDEO_SECONDS = 60;
 
 function mapVideo(row) {
   return { ...row, isHidden: Boolean(row.isHidden), likes: Number(row.likes || 0), likedByMe: Boolean(row.likedByMe), comments: row.comments ? JSON.parse(row.comments) : [] };
@@ -29,6 +30,12 @@ router.get('/', auth, (req, res) => {
 router.post('/', auth, notBlocked, upload.single('video'), (req, res) => {
   if (!req.file) return res.status(400).json({ message: 'Загрузи видео' });
   if (!req.file.mimetype.startsWith('video/')) return res.status(400).json({ message: 'Нужен видеофайл' });
+
+  const duration = Number(req.body.duration || 0);
+  if (duration && duration > MAX_VIDEO_SECONDS + 0.25) {
+    return res.status(400).json({ message: 'Видео должно быть не длиннее 1 минуты' });
+  }
+
   const description = req.body.description || '';
   const moderation = checkText(description);
   if (!moderation.ok) return res.status(400).json({ message: 'Видео не опубликовано: ' + moderation.reason });

@@ -1,5 +1,7 @@
 import React from 'react';
 import { Home, MessageCircle, PlaySquare, Settings, User } from 'lucide-react';
+import { fileUrl } from '../api/api';
+
 const items = [
   ['home', 'Главная', Home],
   ['videos', 'Видео', PlaySquare],
@@ -9,6 +11,11 @@ const items = [
 ];
 
 export default function Layout({ page, setPage, user, children, config, openMyProfile }) {
+  function go(key) {
+    if (key === 'profile') return openMyProfile?.();
+    setPage(key);
+  }
+
   return <div className="appShell">
     <aside className="sidebar">
       <button className="brand brandButton" onClick={() => setPage('home')}>
@@ -19,12 +26,12 @@ export default function Layout({ page, setPage, user, children, config, openMyPr
         <div><b>{user?.username}</b><small>{user?.email}</small></div>
       </button>
       <nav>
-        {items.map(([key, label, Icon]) => <button key={key} className={page === key ? 'active' : ''} onClick={() => setPage(key)}><Icon size={19}/>{label}</button>)}
+        {items.map(([key, label, Icon]) => <button key={key} className={page === key ? 'active' : ''} onClick={() => go(key)}><Icon size={19}/>{label}</button>)}
       </nav>
     </aside>
     <main className="content pageFade">{children}</main>
     <nav className="bottomNav">
-      {items.map(([key, label, Icon]) => <button key={key} className={page === key ? 'active' : ''} onClick={() => setPage(key)}><Icon size={20}/><small>{label}</small></button>)}
+      {items.map(([key, label, Icon]) => <button key={key} className={page === key ? 'active' : ''} onClick={() => go(key)}><Icon size={20}/><small>{label}</small></button>)}
     </nav>
   </div>;
 }

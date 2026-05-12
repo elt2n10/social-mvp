@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
+import { validateVideoFile } from '../utils/media';
 
 const LIMIT = 12;
 
@@ -8,6 +9,8 @@ export default function Videos({ openProfile }) {
   const [offset, setOffset] = useState(0);
   const [description, setDescription] = useState('');
   const [video, setVideo] = useState(null);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [error, setError] = useState('');
   const [comment, setComment] = useState({});
   const [hasMore, setHasMore] = useState(true);
   const videoRefs = useRef({});
@@ -53,12 +56,32 @@ export default function Videos({ openProfile }) {
     return () => { window.removeEventListener('pagehide', pauseAll); document.removeEventListener('visibilitychange', onVisibility); pauseAll(); };
   }, []);
 
+  async function onPickVideo(e) {
+    setError('');
+    const file = e.target.files?.[0] || null;
+    try {
+      const result = await validateVideoFile(file);
+      setVideo(result.file);
+      setVideoDuration(result.duration);
+    } catch (err) {
+      setVideo(null); setVideoDuration(0);
+      if (fileRef.current) fileRef.current.value = '';
+      setError(err.message);
+    }
+  }
+
   async function upload(e) {
     e.preventDefault();
+    setError('');
     if (!video) return;
-    const fd = new FormData(); fd.append('description', description); fd.append('video', video);
-    await api('/api/videos', { method:'POST', body: fd });
-    setDescription(''); setVideo(null); if (fileRef.current) fileRef.current.value = ''; await load(true);
+    const fd = new FormData();
+    fd.append('description', description);
+    fd.append('duration', String(videoDuration || 0));
+    fd.append('video', video);
+    try {
+      await api('/api/videos', { method:'POST', body: fd });
+      setDescription(''); setVideo(null); setVideoDuration(0); if (fileRef.current) fileRef.current.value = ''; await load(true);
+    } catch (err) { setError(err.message); }
   }
   async function like(id) { await api(`/api/videos/${id}/like`, { method:'POST' }); await load(true); }
   async function addComment(id) { if (!comment[id]?.trim()) return; await api(`/api/videos/${id}/comments`, { method:'POST', body: JSON.stringify({ text: comment[id] }) }); setComment({...comment,[id]:''}); await load(true); }
@@ -67,10 +90,12 @@ export default function Videos({ openProfile }) {
     <div className="videoTop">
       <h1>Видео</h1>
       <form className="card composer videoUpload" onSubmit={upload}>
+        {error && <p className="error">{error}</p>}
         <input maxLength={600} placeholder="Описание видео" value={description} onChange={e=>setDescription(e.target.value)} />
+        <small>Видео до 1 минуты. Длиннее сайт не даст опубликовать.</small>
         <div className="row responsiveRow">
-          <input ref={fileRef} id="videoInput" className="hiddenFile" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={e=>setVideo(e.target.files[0] || null)}/>
-          <label className="fileButton" htmlFor="videoInput">🎬 {video ? video.name : 'Выбрать видео'}</label>
+          <input ref={fileRef} id="videoInput" className="hiddenFile" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={onPickVideo}/>
+          <label className="fileButton" htmlFor="videoInput">🎬 {video ? `${video.name} (${Math.round(videoDuration)}с)` : 'Выбрать видео до 1 мин'}</label>
           <button>Загрузить</button>
         </div>
       </form>

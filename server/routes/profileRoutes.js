@@ -5,10 +5,45 @@ const upload = require('../middleware/upload');
 const { checkText } = require('../utils_moderation');
 const router = express.Router();
 
+function profilePayload(user, meId) {
+  const id = Number(user.id);
+  const isMe = id === Number(meId);
+  const followersCount = db.prepare('SELECT COUNT(*) count FROM follows WHERE followingId = ?').get(id).count;
+  const followingCount = db.prepare('SELECT COUNT(*) count FROM follows WHERE followerId = ?').get(id).count;
+  const isFollowing = !isMe && Boolean(db.prepare('SELECT 1 FROM follows WHERE followerId = ? AND followingId = ?').get(meId, id));
+  const followsMe = !isMe && Boolean(db.prepare('SELECT 1 FROM follows WHERE followerId = ? AND followingId = ?').get(id, meId));
+  return {
+    ...user,
+    isBlocked: Boolean(user.isBlocked),
+    isMe,
+    followersCount,
+    followingCount,
+    isFollowing,
+    followsMe,
+    isFriend: isFollowing && followsMe
+  };
+}
+
 router.get('/:id', auth, (req, res) => {
   const user = db.prepare('SELECT id, username, email, avatar, description, coverUrl, profileColor, isBlocked, createdAt FROM users WHERE id = ?').get(req.params.id);
   if (!user) return res.status(404).json({ message: 'Пользователь не найден' });
-  res.json({ ...user, isBlocked: Boolean(user.isBlocked), isMe: Number(req.params.id) === req.user.id });
+  res.json(profilePayload(user, req.user.id));
+});
+
+router.post('/:id/follow', auth, notBlocked, (req, res) => {
+  const targetId = Number(req.params.id);
+  if (!targetId || targetId === Number(req.user.id)) return res.status(400).json({ message: 'Нельзя подписаться на себя' });
+  const target = db.prepare('SELECT id FROM users WHERE id = ?').get(targetId);
+  if (!target) return res.status(404).json({ message: 'Пользователь не найден' });
+  db.prepare('INSERT OR IGNORE INTO follows (followerId, followingId) VALUES (?, ?)').run(req.user.id, targetId);
+  const isFriend = Boolean(db.prepare('SELECT 1 FROM follows WHERE followerId = ? AND followingId = ?').get(targetId, req.user.id));
+  res.json({ ok: true, isFollowing: true, isFriend });
+});
+
+router.delete('/:id/follow', auth, notBlocked, (req, res) => {
+  const targetId = Number(req.params.id);
+  db.prepare('DELETE FROM follows WHERE followerId = ? AND followingId = ?').run(req.user.id, targetId);
+  res.json({ ok: true, isFollowing: false, isFriend: false });
 });
 
 router.put('/me', auth, notBlocked, upload.fields([{ name: 'avatar', maxCount: 1 }, { name: 'cover', maxCount: 1 }]), (req, res) => {
@@ -23,7 +58,7 @@ router.put('/me', auth, notBlocked, upload.fields([{ name: 'avatar', maxCount: 1
     db.prepare('UPDATE users SET username = ?, description = ?, avatar = ?, coverUrl = ?, profileColor = ? WHERE id = ?')
       .run(username, description.slice(0, 800), avatar, coverUrl, profileColor, req.user.id);
     const user = db.prepare('SELECT id, username, email, avatar, description, coverUrl, profileColor, isBlocked, createdAt FROM users WHERE id = ?').get(req.user.id);
-    res.json({ ...user, isBlocked: Boolean(user.isBlocked) });
+    res.json(profilePayload(user, req.user.id));
   } catch {
     res.status(409).json({ message: 'Такое имя уже занято' });
   }

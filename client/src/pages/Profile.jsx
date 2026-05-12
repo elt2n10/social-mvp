@@ -1,5 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
+import { MAX_POST_CHARS, MAX_POST_IMAGES, preparePostImages, validateVideoFile } from '../utils/media';
+
+function PostImages({ images = [] }) {
+  if (!images.length) return null;
+  return <div className={images.length === 1 ? 'postImages single' : 'postImages'}>
+    {images.slice(0, MAX_POST_IMAGES).map((url, i) => <img className="postImage" key={url + i} src={fileUrl(url)} alt="post" loading="lazy" />)}
+  </div>;
+}
 
 export default function Profile({ user, setUser, profileId, openMessages }) {
   const [profile, setProfile] = useState(null);
@@ -12,9 +20,11 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
   const [avatar, setAvatar] = useState(null);
   const [cover, setCover] = useState(null);
   const [postText, setPostText] = useState('');
-  const [postImage, setPostImage] = useState(null);
+  const [postImages, setPostImages] = useState([]);
   const [videoDesc, setVideoDesc] = useState('');
   const [videoFile, setVideoFile] = useState(null);
+  const [videoDuration, setVideoDuration] = useState(0);
+  const [error, setError] = useState('');
   const postFileRef = useRef(null);
   const videoFileRef = useRef(null);
   const isMe = Number(profileId) === Number(user.id);
@@ -26,7 +36,7 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
     setPosts(await api(`/api/posts/user/${profileId}`));
     setVideos(await api(`/api/videos/user/${profileId}`));
   }
-  useEffect(()=>{ load(); }, [profileId]);
+  useEffect(()=>{ setError(''); load().catch(e => setError(e.message)); }, [profileId]);
 
   async function save(e){
     e.preventDefault();
@@ -37,25 +47,58 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
     setUser(updated); setProfile(updated); setEdit(false);
   }
 
+  async function onPickPostImages(e) {
+    setError('');
+    try {
+      setPostImages(await preparePostImages(e.target.files));
+    } catch (err) {
+      setPostImages([]);
+      if (postFileRef.current) postFileRef.current.value = '';
+      setError(err.message);
+    }
+  }
+
+  async function onPickVideo(e) {
+    setError('');
+    const file = e.target.files?.[0] || null;
+    try {
+      const result = await validateVideoFile(file);
+      setVideoFile(result.file);
+      setVideoDuration(result.duration);
+    } catch (err) {
+      setVideoFile(null); setVideoDuration(0);
+      if (videoFileRef.current) videoFileRef.current.value = '';
+      setError(err.message);
+    }
+  }
+
   async function publishPost(e) {
-    e.preventDefault();
-    if (!postText.trim() && !postImage) return;
+    e.preventDefault(); setError('');
+    if (!postText.trim() && postImages.length === 0) return;
     const fd = new FormData();
-    fd.append('text', postText);
-    if (postImage) fd.append('image', postImage);
+    fd.append('text', postText.slice(0, MAX_POST_CHARS));
+    postImages.forEach(img => fd.append('images', img));
     await api('/api/posts', { method:'POST', body: fd });
-    setPostText(''); setPostImage(null); if (postFileRef.current) postFileRef.current.value = '';
+    setPostText(''); setPostImages([]); if (postFileRef.current) postFileRef.current.value = '';
     await load();
   }
 
   async function publishVideo(e) {
-    e.preventDefault();
+    e.preventDefault(); setError('');
     if (!videoFile) return;
     const fd = new FormData();
     fd.append('description', videoDesc);
+    fd.append('duration', String(videoDuration || 0));
     fd.append('video', videoFile);
     await api('/api/videos', { method:'POST', body: fd });
-    setVideoDesc(''); setVideoFile(null); if (videoFileRef.current) videoFileRef.current.value = '';
+    setVideoDesc(''); setVideoFile(null); setVideoDuration(0); if (videoFileRef.current) videoFileRef.current.value = '';
+    await load();
+  }
+
+  async function toggleFollow() {
+    if (!profile || profile.isMe) return;
+    if (profile.isFollowing) await api(`/api/profile/${profile.id}/follow`, { method: 'DELETE' });
+    else await api(`/api/profile/${profile.id}/follow`, { method: 'POST' });
     await load();
   }
 
@@ -63,12 +106,18 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
 
   return <section>
     <h1>{isMe ? 'Профиль' : `Профиль ${profile.username}`}</h1>
+    {error && <p className="error">{error}</p>}
     <div className="card profileTop profileCard" style={{ borderColor: profile.profileColor || undefined }}>
       <div className="cover" style={{ backgroundImage: profile.coverUrl ? `url(${fileUrl(profile.coverUrl)})` : undefined, backgroundColor: profile.profileColor || undefined }} />
       <div className="profileInfo">
         {profile.avatar ? <img className="bigAvatar" src={fileUrl(profile.avatar)} /> : <div className="avatar huge">{profile.username?.[0]}</div>}
-        <div className="profileText"><h2>{profile.username}</h2><p className="safeText">{profile.description || 'Описание пока пустое'}</p><small>Дата регистрации: {new Date(profile.createdAt).toLocaleDateString('ru-RU')}</small></div>
-        {isMe ? <button onClick={()=>setEdit(!edit)}>Редактировать</button> : <button onClick={openMessages}>Написать</button>}
+        <div className="profileText">
+          <h2>{profile.username}</h2>
+          <p className="safeText">{profile.description || 'Описание пока пустое'}</p>
+          <small>Дата регистрации: {new Date(profile.createdAt).toLocaleDateString('ru-RU')}</small>
+          <div className="followStats"><span>{profile.followersCount || 0} подписчиков</span><span>{profile.followingCount || 0} подписок</span>{profile.isFriend && <b>Друзья</b>}</div>
+        </div>
+        {isMe ? <button onClick={()=>setEdit(!edit)}>Редактировать</button> : <div className="profileActions"><button onClick={toggleFollow}>{profile.isFollowing ? 'Отписаться' : 'Подписаться'}</button><button className="ghost" onClick={openMessages}>Написать</button></div>}
       </div>
     </div>
 
@@ -84,26 +133,29 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
     {isMe && <div className="profilePublishGrid">
       <form className="card composer" onSubmit={publishPost}>
         <h3>Новый пост</h3>
-        <textarea maxLength={3000} placeholder="Напиши пост прямо из профиля" value={postText} onChange={e=>setPostText(e.target.value)} />
+        <textarea maxLength={MAX_POST_CHARS} placeholder="Напиши пост прямо из профиля" value={postText} onChange={e=>setPostText(e.target.value.slice(0, MAX_POST_CHARS))} />
+        <small className={postText.length >= MAX_POST_CHARS ? 'limitWarn' : ''}>{postText.length}/{MAX_POST_CHARS}</small>
+        {postImages.length > 0 && <div className="pickedFiles">{postImages.map((img, i)=><span key={i}>📷 {img.name}</span>)}</div>}
         <div className="row responsiveRow">
-          <input ref={postFileRef} id="profilePostImage" className="hiddenFile" type="file" accept="image/*" onChange={e=>setPostImage(e.target.files[0] || null)}/>
-          <label className="fileButton" htmlFor="profilePostImage">📷 {postImage ? postImage.name : 'Фото'}</label>
+          <input ref={postFileRef} id="profilePostImage" className="hiddenFile" type="file" multiple accept="image/*" onChange={onPickPostImages}/>
+          <label className="fileButton" htmlFor="profilePostImage">📷 {postImages.length ? `Фото: ${postImages.length}/${MAX_POST_IMAGES}` : 'До 10 фото'}</label>
           <button>Опубликовать</button>
         </div>
       </form>
       <form className="card composer" onSubmit={publishVideo}>
         <h3>Новое видео</h3>
         <input maxLength={600} placeholder="Описание видео" value={videoDesc} onChange={e=>setVideoDesc(e.target.value)} />
+        <small>Видео до 1 минуты. Длиннее не публикуется.</small>
         <div className="row responsiveRow">
-          <input ref={videoFileRef} id="profileVideoInput" className="hiddenFile" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={e=>setVideoFile(e.target.files[0] || null)}/>
-          <label className="fileButton" htmlFor="profileVideoInput">🎬 {videoFile ? videoFile.name : 'Видео'}</label>
+          <input ref={videoFileRef} id="profileVideoInput" className="hiddenFile" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={onPickVideo}/>
+          <label className="fileButton" htmlFor="profileVideoInput">🎬 {videoFile ? `${videoFile.name} (${Math.round(videoDuration)}с)` : 'Видео до 1 мин'}</label>
           <button>Загрузить</button>
         </div>
       </form>
     </div>}
 
     <h2>Посты</h2>
-    <div className="grid">{posts.map(p=><div className="card" key={p.id}><p className="safeText">{p.text}</p>{p.imageUrl && <img className="postImage" src={fileUrl(p.imageUrl)}/>}<small>♥ {p.likes}</small></div>)}</div>
+    <div className="grid">{posts.map(p=><div className="card" key={p.id}><p className="safeText">{p.text}</p><PostImages images={p.imageUrls || (p.imageUrl ? [p.imageUrl] : [])}/><small>♥ {p.likes}</small></div>)}</div>
     <h2>Видео</h2>
     <div className="grid">{videos.map(v=><div className="card" key={v.id}><video className="miniVideo" src={fileUrl(v.videoUrl)} controls/><p className="safeText">{v.description}</p><small>♥ {v.likes}</small></div>)}</div>
   </section>;

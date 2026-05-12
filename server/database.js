@@ -30,6 +30,15 @@ CREATE TABLE IF NOT EXISTS posts (
   FOREIGN KEY(authorId) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS post_images (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  postId INTEGER NOT NULL,
+  imageUrl TEXT NOT NULL,
+  position INTEGER DEFAULT 0,
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(postId) REFERENCES posts(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS post_likes (
   postId INTEGER NOT NULL,
   userId INTEGER NOT NULL,
@@ -94,6 +103,15 @@ CREATE TABLE IF NOT EXISTS site_config (
   value TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS follows (
+  followerId INTEGER NOT NULL,
+  followingId INTEGER NOT NULL,
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(followerId, followingId),
+  FOREIGN KEY(followerId) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(followingId) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS reports (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   targetType TEXT NOT NULL,
@@ -148,9 +166,12 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(createdAt);
 CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(authorId);
+CREATE INDEX IF NOT EXISTS idx_post_images_post ON post_images(postId, position);
 CREATE INDEX IF NOT EXISTS idx_messages_pair ON messages(fromUserId, toUserId, createdAt);
 CREATE INDEX IF NOT EXISTS idx_videos_created ON videos(createdAt);
 CREATE INDEX IF NOT EXISTS idx_videos_author ON videos(authorId);
+CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(followingId);
+CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(followerId);
 `);
 
 module.exports = db;

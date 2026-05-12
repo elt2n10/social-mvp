@@ -1,14 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
+import { MAX_POST_CHARS, MAX_POST_IMAGES, preparePostImages } from '../utils/media';
 
 const LIMIT = 20;
+
+function PostImages({ images = [] }) {
+  if (!images.length) return null;
+  return <div className={images.length === 1 ? 'postImages single' : 'postImages'}>
+    {images.slice(0, MAX_POST_IMAGES).map((url, i) => <img className="postImage" key={url + i} src={fileUrl(url)} alt="post" loading="lazy" />)}
+  </div>;
+}
 
 export default function Home({ openProfile }) {
   const [posts, setPosts] = useState([]);
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [text, setText] = useState('');
-  const [image, setImage] = useState(null);
+  const [images, setImages] = useState([]);
   const [comment, setComment] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -25,11 +33,29 @@ export default function Home({ openProfile }) {
   }
   useEffect(() => { load(true).catch(e=>setError(e.message)); }, []);
 
+  async function onPickImages(e) {
+    setError('');
+    try {
+      const prepared = await preparePostImages(e.target.files);
+      setImages(prepared);
+    } catch (err) {
+      setImages([]);
+      if (fileRef.current) fileRef.current.value = '';
+      setError(err.message);
+    }
+  }
+
   async function createPost(e) {
     e.preventDefault(); setError('');
-    if (!text.trim() && !image) return setError('Добавь текст или фото');
-    const fd = new FormData(); fd.append('text', text); if (image) fd.append('image', image);
-    try { await api('/api/posts', { method:'POST', body:fd }); setText(''); setImage(null); if (fileRef.current) fileRef.current.value = ''; await load(true); } catch(e) { setError(e.message); }
+    if (!text.trim() && images.length === 0) return setError('Добавь текст или фото');
+    const fd = new FormData();
+    fd.append('text', text.slice(0, MAX_POST_CHARS));
+    images.forEach(img => fd.append('images', img));
+    try {
+      await api('/api/posts', { method:'POST', body:fd });
+      setText(''); setImages([]); if (fileRef.current) fileRef.current.value = '';
+      await load(true);
+    } catch(e) { setError(e.message); }
   }
   async function like(id) { await api(`/api/posts/${id}/like`, { method:'POST' }); await load(true); }
   async function addComment(id) {
@@ -42,10 +68,12 @@ export default function Home({ openProfile }) {
     <h1>Главная лента</h1>
     <form className="card composer" onSubmit={createPost}>
       {error && <p className="error">{error}</p>}
-      <textarea maxLength={3000} placeholder="Что нового?" value={text} onChange={e=>setText(e.target.value)} />
+      <textarea maxLength={MAX_POST_CHARS} placeholder="Что нового?" value={text} onChange={e=>setText(e.target.value.slice(0, MAX_POST_CHARS))} />
+      <small className={text.length >= MAX_POST_CHARS ? 'limitWarn' : ''}>{text.length}/{MAX_POST_CHARS}</small>
+      {images.length > 0 && <div className="pickedFiles">{images.map((img, i) => <span key={i}>📷 {img.name}</span>)}</div>}
       <div className="row responsiveRow">
-        <input ref={fileRef} id="postImageInput" className="hiddenFile" type="file" accept="image/*" onChange={e=>setImage(e.target.files[0] || null)}/>
-        <label className="fileButton" htmlFor="postImageInput">📷 {image ? image.name : 'Добавить фото'}</label>
+        <input ref={fileRef} id="postImageInput" className="hiddenFile" type="file" multiple accept="image/*" onChange={onPickImages}/>
+        <label className="fileButton" htmlFor="postImageInput">📷 {images.length ? `Фото: ${images.length}/${MAX_POST_IMAGES}` : 'Добавить до 10 фото'}</label>
         <button>Опубликовать</button>
       </div>
     </form>
@@ -56,7 +84,7 @@ export default function Home({ openProfile }) {
           <div><b>{p.authorName}</b><small>{new Date(p.createdAt).toLocaleString('ru-RU')} · ID поста: {p.id}</small></div>
         </div>
         {p.text && <p className="safeText">{p.text}</p>}
-        {p.imageUrl && <img className="postImage" src={fileUrl(p.imageUrl)} alt="post" loading="lazy" />}
+        <PostImages images={p.imageUrls || (p.imageUrl ? [p.imageUrl] : [])} />
         <button className={p.likedByMe ? 'liked' : ''} onClick={()=>like(p.id)}>♥ {p.likes}</button>
         <div className="comments">
           {p.comments.map(c => <p className="safeText" key={c.id}><b className="clickable" onClick={()=>openProfile?.(c.authorId)}>{c.authorName}:</b> {c.text}</p>)}
