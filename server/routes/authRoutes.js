@@ -10,18 +10,6 @@ const { sendVerificationEmail } = require('../utils/email');
 const router = express.Router();
 const EMAIL_CODE_LIFETIME_MIN = 15;
 
-const captcha = captchas.get(captchaId);
-
-if (!captcha || captcha.expiresAt < Date.now()) {
-  return res.status(400).json({ message: 'Капча устарела' });
-}
-
-if (String(captchaAnswer || '').trim().toLowerCase() !== captcha.answer) {
-  return res.status(400).json({ message: 'Капча введена неверно' });
-}
-
-captchas.delete(captchaId);
-
 function publicUser(user) {
   return {
     id: user.id,
@@ -65,25 +53,16 @@ async function verifyCaptcha(captchaId, captchaAnswer) {
   return ok;
 }
 
-router.get('/captcha', (req, res) => {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let code = '';
-
-  for (let i = 0; i < 5; i++) {
-    code += chars[Math.floor(Math.random() * chars.length)];
-  }
-
-  const captchaId = crypto.randomUUID();
-
-  captchas.set(captchaId, {
-    answer: code.toLowerCase(),
-    expiresAt: Date.now() + 5 * 60 * 1000
-  });
-
-  res.json({
-    captchaId,
-    question: code
-  });
+router.get('/captcha', async (req, res, next) => {
+  try {
+    db.prepare('DELETE FROM captcha_challenges WHERE expiresAt < ? OR used = 1').run(new Date(Date.now() - 60_000).toISOString());
+    const { question, answer } = createCaptchaQuestion();
+    const id = crypto.randomUUID();
+    const hash = await hashSecret(answer);
+    const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+    db.prepare('INSERT INTO captcha_challenges (id, answerHash, expiresAt) VALUES (?, ?, ?)').run(id, hash, expiresAt);
+    res.json({ captchaId: id, question });
+  } catch (e) { next(e); }
 });
 
 router.post('/check-invite', (req, res) => {
