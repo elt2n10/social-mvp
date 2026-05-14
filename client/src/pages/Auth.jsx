@@ -44,7 +44,7 @@ export default function Auth({ onAuth, config }) {
         ? {
             ...form,
             captchaId: captcha?.captchaId,
-            captchaAnswer: captchaAnswer.trim()
+            captchaAnswer: String(form.captchaAnswer || '').trim()
           }
         : form;
       const data = await api(path, { method:'POST', body: JSON.stringify(body) });
@@ -72,23 +72,13 @@ export default function Auth({ onAuth, config }) {
 
   async function resendCode() {
     setError('');
-
     try {
       const data = await api('/api/auth/resend-verification', {
         method: 'POST',
-        body: JSON.stringify({
-          email: verifyEmail
-        })
+        body: JSON.stringify({ email: verifyEmail })
       });
-
-      setVerifyHint(
-        data.debugCode
-          ? `Новый тестовый код: ${data.debugCode}`
-          : 'Код отправлен повторно'
-      );
-    } catch (err) {
-      setError(err.message);
-    }
+      setVerifyHint(data.debugCode ? `Новый тестовый код: ${data.debugCode}` : `Новый код отправлен на ${data.maskedEmail || 'почту'}`);
+    } catch (err) { setError(err.message); }
   }
 
   return <div className="authPage">
