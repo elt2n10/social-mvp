@@ -45,7 +45,10 @@ export async function api(path, options = {}) {
 
   if (!response.ok) {
     if (response.status === 401) clearToken();
-    throw new Error(data.message || 'Ошибка запроса');
+    const error = new Error(data.message || 'Ошибка запроса');
+    error.status = response.status;
+    error.data = data;
+    throw error;
   }
 
   return data;

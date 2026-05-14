@@ -10,7 +10,7 @@ const items = [
   ['settings', 'Настройки', Settings]
 ];
 
-export default function Layout({ page, setPage, user, children, config, openMyProfile }) {
+export default function Layout({ page, setPage, user, children, config, onlineCount, openMyProfile }) {
   function go(key) {
     if (key === 'profile') return openMyProfile?.();
     setPage(key);
@@ -23,7 +23,7 @@ export default function Layout({ page, setPage, user, children, config, openMyPr
       </button>
       <button className="miniProfile cleanButton" onClick={openMyProfile}>
         {user?.avatar ? <img className="avatarImage" src={fileUrl(user.avatar)} /> : <div className="avatar">{user?.username?.[0]?.toUpperCase()}</div>}
-        <div><b>{user?.username}</b><small>{user?.email}</small></div>
+        <div><b>{user?.username}</b><small>{onlineCount ? `Онлайн: ${onlineCount}` : 'Профиль'}</small></div>
       </button>
       <nav>
         {items.map(([key, label, Icon]) => <button key={key} className={page === key ? 'active' : ''} onClick={() => go(key)}><Icon size={19}/>{label}</button>)}

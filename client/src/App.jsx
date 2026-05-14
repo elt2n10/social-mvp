@@ -52,6 +52,7 @@ export default function App() {
   const [devPassword, setDevPassword] = useState('');
   const [error, setError] = useState('');
   const [config, setConfig] = useState(defaultConfig);
+  const [onlineCount, setOnlineCount] = useState(0);
 
   useEffect(() => {
     // Старые версии сохраняли devAccess в localStorage и из-за этого кнопки разработчика
@@ -100,27 +101,24 @@ export default function App() {
   useEffect(() => {
     if (!getToken()) return;
     api('/api/auth/me')
-      .then((d) => setUser(d.user))
+      .then((d) => { setUser(d.user); activateDevEmail(d.user); })
       .catch(() => { clearToken(); setUser(null); });
   }, []);
 
-  // Если текущая почта указана в DEV_EMAILS на backend, режим разработчика
-  // разблокируется автоматически, но сама панель не открывается без клика.
   useEffect(() => {
-    if (!user?.isDev) return;
-
-    setDevUnlocked(true);
-
-    if (!getDevToken()) {
-      api('/api/dev/email-login', { method: 'POST', body: JSON.stringify({}) })
-        .then((data) => {
-          if (data.devToken) setDevToken(data.devToken);
-        })
-        .catch(() => {
-          // Если Render ещё не обновился, останется старый способ через пароль.
-        });
+    if (!user) return;
+    let alive = true;
+    async function ping() {
+      try {
+        await api('/api/live/heartbeat', { method: 'POST' });
+        const summary = await api('/api/live/summary');
+        if (alive) setOnlineCount(summary.onlineCount || 0);
+      } catch {}
     }
-  }, [user]);
+    ping();
+    const timer = setInterval(ping, 25000);
+    return () => { alive = false; clearInterval(timer); };
+  }, [user?.id]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -162,15 +160,26 @@ export default function App() {
     } catch (err) { setError(err.message); }
   }
 
+  async function activateDevEmail(userData) {
+    if (!userData?.isDev) return;
+    try {
+      const data = await api('/api/dev/email-login', { method: 'POST' });
+      if (data.devToken) {
+        setDevToken(data.devToken);
+        setDevUnlocked(true);
+      }
+    } catch {}
+  }
+
   function logout() { clearToken(); setUser(null); goPage('home'); }
   function openProfile(id) { setProfileId(id); goPage('profile'); }
   function openMyProfile() { setProfileId(user?.id); goPage('profile'); }
 
   if (!inviteOk) return <div className="center denied"><h1>Доступ запрещён</h1><p>Открой сайт по invite-ссылке.</p></div>;
-  if (!user) return <Auth onAuth={setUser} config={config} />;
+  if (!user) return <Auth onAuth={(u) => { setUser(u); activateDevEmail(u); }} config={config} />;
 
   return <>
-    <Layout page={page} setPage={goPage} user={user} config={config} openMyProfile={openMyProfile}>
+    <Layout page={page} setPage={goPage} user={user} config={config} onlineCount={onlineCount} openMyProfile={openMyProfile}>
       {page === 'home' && <Home openProfile={openProfile} />}
       {page === 'videos' && <Videos openProfile={openProfile} />}
       {page === 'messages' && <Messages me={user} openProfile={openProfile} config={config} />}

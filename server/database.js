@@ -15,6 +15,10 @@ CREATE TABLE IF NOT EXISTS users (
   coverUrl TEXT DEFAULT '',
   profileColor TEXT DEFAULT '',
   isBlocked INTEGER DEFAULT 0,
+  isEmailVerified INTEGER DEFAULT 1,
+  emailVerifyCodeHash TEXT DEFAULT '',
+  emailVerifyExpiresAt TEXT DEFAULT '',
+  lastEmailCodeAt TEXT DEFAULT '',
   createdAt TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -121,6 +125,20 @@ CREATE TABLE IF NOT EXISTS reports (
   createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY(fromUserId) REFERENCES users(id) ON DELETE SET NULL
 );
+
+CREATE TABLE IF NOT EXISTS captcha_challenges (
+  id TEXT PRIMARY KEY,
+  answerHash TEXT NOT NULL,
+  expiresAt TEXT NOT NULL,
+  used INTEGER DEFAULT 0,
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS online_status (
+  userId INTEGER PRIMARY KEY,
+  lastSeen TEXT NOT NULL,
+  FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE
+);
 `);
 
 function tableColumns(table) {
@@ -132,9 +150,13 @@ function addColumnIfMissing(table, column, sql) {
   if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${sql}`);
 }
 
-// Безопасные миграции: добавляют новые поля, но не удаляют старые данные.
+// Безопасные миграции: добавляют поля, но не удаляют старые данные.
 addColumnIfMissing('users', 'coverUrl', "coverUrl TEXT DEFAULT ''");
 addColumnIfMissing('users', 'profileColor', "profileColor TEXT DEFAULT ''");
+addColumnIfMissing('users', 'isEmailVerified', 'isEmailVerified INTEGER DEFAULT 1');
+addColumnIfMissing('users', 'emailVerifyCodeHash', "emailVerifyCodeHash TEXT DEFAULT ''");
+addColumnIfMissing('users', 'emailVerifyExpiresAt', "emailVerifyExpiresAt TEXT DEFAULT ''");
+addColumnIfMissing('users', 'lastEmailCodeAt', "lastEmailCodeAt TEXT DEFAULT ''");
 addColumnIfMissing('posts', 'isHidden', 'isHidden INTEGER DEFAULT 0');
 addColumnIfMissing('posts', 'moderationStatus', "moderationStatus TEXT DEFAULT 'approved'");
 addColumnIfMissing('posts', 'moderationReason', "moderationReason TEXT DEFAULT ''");
@@ -160,7 +182,7 @@ const defaultConfig = {
 const insertConfig = db.prepare('INSERT OR IGNORE INTO site_config (key, value) VALUES (?, ?)');
 for (const [key, value] of Object.entries(defaultConfig)) insertConfig.run(key, String(value));
 
-// Индексы ускоряют ленту, профили и сообщения.
+// Индексы ускоряют ленту, профили, сообщения, dev-панель и онлайн.
 db.exec(`
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
@@ -168,10 +190,12 @@ CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(createdAt);
 CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(authorId);
 CREATE INDEX IF NOT EXISTS idx_post_images_post ON post_images(postId, position);
 CREATE INDEX IF NOT EXISTS idx_messages_pair ON messages(fromUserId, toUserId, createdAt);
+CREATE INDEX IF NOT EXISTS idx_messages_to_created ON messages(toUserId, createdAt);
 CREATE INDEX IF NOT EXISTS idx_videos_created ON videos(createdAt);
 CREATE INDEX IF NOT EXISTS idx_videos_author ON videos(authorId);
 CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(followingId);
 CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(followerId);
+CREATE INDEX IF NOT EXISTS idx_online_last_seen ON online_status(lastSeen);
 `);
 
 module.exports = db;

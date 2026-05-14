@@ -32,6 +32,10 @@ export default function Home({ openProfile }) {
     setLoading(false);
   }
   useEffect(() => { load(true).catch(e=>setError(e.message)); }, []);
+  useEffect(() => {
+    const timer = setInterval(() => load(true).catch(()=>{}), 12000);
+    return () => clearInterval(timer);
+  }, []);
 
   async function onPickImages(e) {
     setError('');

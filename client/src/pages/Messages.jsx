@@ -18,7 +18,9 @@ export default function Messages({ me, openProfile, config }) {
   async function loadDialogs(){ setDialogs(await api('/api/messages/dialogs')); }
   async function loadChat(id){ setMessages(await api(`/api/messages/with/${id}?limit=80`)); }
   useEffect(()=>{ loadDialogs(); }, []);
+  useEffect(()=>{ const timer = setInterval(() => loadDialogs().catch(()=>{}), 7000); return () => clearInterval(timer); }, []);
   useEffect(()=>{ if(active) loadChat(active.id); }, [active]);
+  useEffect(()=>{ if(!active) return; const timer = setInterval(() => loadChat(active.id).catch(()=>{}), 3500); return () => clearInterval(timer); }, [active?.id]);
   useEffect(()=>{ bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' }); }, [messages.length]);
 
   async function search() { setUsers(await api(`/api/messages/users/search?q=${encodeURIComponent(q)}`)); }

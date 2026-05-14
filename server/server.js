@@ -5,6 +5,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
+const { createRateLimit } = require('./middleware/rateLimit');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -32,13 +33,14 @@ app.use(cors({
 app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/auth', createRateLimit({ windowMs: 60_000, max: 45, keyPrefix: 'auth' }), require('./routes/authRoutes'));
 app.use('/api/posts', require('./routes/postRoutes'));
 app.use('/api/videos', require('./routes/videoRoutes'));
 app.use('/api/messages', require('./routes/messageRoutes'));
 app.use('/api/profile', require('./routes/profileRoutes'));
-app.use('/api/dev', require('./routes/devRoutes'));
+app.use('/api/dev', createRateLimit({ windowMs: 60_000, max: 80, keyPrefix: 'dev' }), require('./routes/devRoutes'));
 app.use('/api/site', require('./routes/siteRoutes'));
+app.use('/api/live', require('./routes/liveRoutes'));
 
 app.get('/api/health', (_, res) => res.json({ ok: true, app: 'Yved' }));
 

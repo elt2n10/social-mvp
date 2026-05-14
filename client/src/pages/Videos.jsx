@@ -24,6 +24,10 @@ export default function Videos({ openProfile }) {
     setHasMore(data.length === LIMIT);
   }
   useEffect(() => { load(true); }, []);
+  useEffect(() => {
+    const timer = setInterval(() => load(true).catch(()=>{}), 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   function pauseAll(except = null) {
     Object.values(videoRefs.current).forEach(v => { if (v && v !== except) v.pause(); });

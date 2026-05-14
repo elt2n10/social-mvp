@@ -1,9 +1,10 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 const db = require('../database');
-const { auth, devOnly, isDevEmail } = require('../middleware/auth');
+const { auth, devOnly } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { getConfig } = require('./siteRoutes');
+const { isDevEmail, maskEmail } = require('../utils/security');
 const { saveUploadedFile } = require('../utils/storage');
 const router = express.Router();
 
@@ -17,13 +18,11 @@ router.post('/login', (req, res) => {
   res.status(403).json({ message: 'Неверный пароль разработчика' });
 });
 
-router.post('/email-login', auth, (req, res) => {
-  if (!isDevEmail(req.user.email)) {
-    return res.status(403).json({ message: 'Эта почта не имеет доступа разработчика' });
-  }
 
+router.post('/email-login', auth, (req, res) => {
+  if (!isDevEmail(req.user.email)) return res.status(403).json({ message: 'Эта почта не является dev-почтой' });
   const devToken = jwt.sign({ dev: true, role: 'developer', userId: req.user.id }, process.env.JWT_SECRET, { expiresIn: '8h' });
-  res.json({ devAccess: true, devToken, isDev: true });
+  res.json({ devAccess: true, devToken });
 });
 
 router.get('/stats', auth, devOnly, (req, res) => {
@@ -38,8 +37,8 @@ router.get('/stats', auth, devOnly, (req, res) => {
 });
 
 router.get('/users', auth, devOnly, (req, res) => {
-  const users = db.prepare('SELECT id, username, email, avatar, coverUrl, description, isBlocked, createdAt FROM users ORDER BY id DESC LIMIT 200').all()
-    .map(u => ({ ...u, isBlocked: Boolean(u.isBlocked) }));
+  const users = db.prepare('SELECT id, username, email, avatar, coverUrl, description, isBlocked, isEmailVerified, createdAt FROM users ORDER BY id DESC LIMIT 200').all()
+    .map(u => ({ ...u, email: maskEmail(u.email), isBlocked: Boolean(u.isBlocked), isEmailVerified: Boolean(u.isEmailVerified), isDev: isDevEmail(u.email) }));
   res.json(users);
 });
 
@@ -99,6 +98,13 @@ router.put('/users/:id/block', auth, devOnly, (req, res) => {
 
 router.put('/users/:id/unblock', auth, devOnly, (req, res) => {
   db.prepare('UPDATE users SET isBlocked = 0 WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+router.delete('/users/:id', auth, devOnly, (req, res) => {
+  const userId = Number(req.params.id);
+  if (userId === req.user.id) return res.status(400).json({ message: 'Нельзя удалить свой аккаунт из dev-панели' });
+  db.prepare('DELETE FROM users WHERE id = ?').run(userId);
   res.json({ ok: true });
 });
 

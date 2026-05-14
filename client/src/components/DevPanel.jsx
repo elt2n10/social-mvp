@@ -90,11 +90,12 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
       <h3>Пользователи, аватарки и обложки</h3>
       <div className="userList">
         {users.map(u => <div className="userRow" key={u.id}>
-          <span>#{u.id} <b>{u.username}</b> {u.isBlocked ? '🚫' : ''}<small>{u.email}</small></span>
+          <span>#{u.id} <b>{u.username}</b> {u.isBlocked ? '🚫' : ''} {u.isDev ? '🛠' : ''}<small>{u.email} · {u.isEmailVerified ? 'почта подтверждена' : 'почта не подтверждена'}</small></span>
           <div className="devActions">
             {u.avatar && <button className="ghost" onClick={()=>action(()=>api(`/api/dev/users/${u.id}/avatar/clear`, { method:'PUT' }))}>Убрать аватар</button>}
             {u.coverUrl && <button className="ghost" onClick={()=>action(()=>api(`/api/dev/users/${u.id}/cover/clear`, { method:'PUT' }))}>Убрать обложку</button>}
             <button onClick={()=>action(()=>api(`/api/dev/users/${u.id}/${u.isBlocked ? 'unblock':'block'}`, { method:'PUT' }))}>{u.isBlocked ? 'Разблокировать' : 'Заблокировать'}</button>
+            <button className="danger" onClick={()=>{ if(confirm(`Удалить аккаунт ${u.username} навсегда?`)) action(()=>api(`/api/dev/users/${u.id}`, { method:'DELETE' })); }}>Удалить аккаунт</button>
           </div>
         </div>)}
       </div>
