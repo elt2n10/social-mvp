@@ -24,7 +24,7 @@ export default function Activity() {
 
   useEffect(() => {
     load().catch(e => setError(e.message));
-    const timer = setInterval(() => load().catch(() => {}), 12000);
+    const timer = setInterval(() => load().catch(() => {}), 4500);
     return () => clearInterval(timer);
   }, []);
 

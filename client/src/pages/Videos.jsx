@@ -16,6 +16,11 @@ export default function Videos({ openProfile }) {
   const [soundOn, setSoundOn] = useState(true);
   const videoRefs = useRef({});
 
+  useEffect(() => {
+    document.body.classList.add('videoMode');
+    return () => { document.body.classList.remove('videoMode'); pauseAll(); };
+  }, []);
+
   async function load(reset = false) {
     const nextOffset = reset ? 0 : offset;
     const data = await api(`/api/videos?limit=${LIMIT}&offset=${nextOffset}`);
@@ -93,14 +98,6 @@ export default function Videos({ openProfile }) {
   }
 
   return <section className="videoPage tiktokVideoPage">
-    <div className="videoPageHeader">
-      <div>
-        <h1>Видео</h1>
-        <small>Публикация видео теперь находится в профиле. Здесь только просмотр.</small>
-      </div>
-      <button className="ghost" onClick={toggleSound}>{soundOn ? '🔊 Звук' : '🔇 Без звука'}</button>
-    </div>
-
     {error && <p className="error">{error}</p>}
 
     <div className="videoFeed tiktokFeed">

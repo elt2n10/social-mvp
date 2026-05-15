@@ -122,7 +122,7 @@ export default function App() {
       } catch {}
     }
     ping();
-    const timer = setInterval(ping, 25000);
+    const timer = setInterval(ping, 7000);
     return () => { alive = false; clearInterval(timer); };
   }, [user?.id]);
 
@@ -160,7 +160,7 @@ export default function App() {
     if (!user || activityUnread <= 0 || !('Notification' in window) || Notification.permission !== 'granted') return;
     const last = Number(sessionStorage.getItem('lastActivityNotify') || 0);
     const now = Date.now();
-    if (now - last < 30000) return;
+    if (now - last < 12000) return;
     sessionStorage.setItem('lastActivityNotify', String(now));
     try { new Notification('Yved', { body: `Новых событий: ${activityUnread}` }); } catch {}
   }, [activityUnread, user?.id]);

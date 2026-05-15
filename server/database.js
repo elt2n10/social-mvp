@@ -72,6 +72,39 @@ CREATE TABLE IF NOT EXISTS messages (
   FOREIGN KEY(toUserId) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS message_groups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ownerId INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  avatar TEXT DEFAULT '',
+  color TEXT DEFAULT '#7c3cff',
+  description TEXT DEFAULT '',
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(ownerId) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS message_group_members (
+  groupId INTEGER NOT NULL,
+  userId INTEGER NOT NULL,
+  role TEXT DEFAULT 'member',
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(groupId, userId),
+  FOREIGN KEY(groupId) REFERENCES message_groups(id) ON DELETE CASCADE,
+  FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS message_group_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  groupId INTEGER NOT NULL,
+  fromUserId INTEGER NOT NULL,
+  text TEXT NOT NULL,
+  messageType TEXT DEFAULT 'text',
+  stickerUrl TEXT DEFAULT '',
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(groupId) REFERENCES message_groups(id) ON DELETE CASCADE,
+  FOREIGN KEY(fromUserId) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS stickers (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
@@ -234,6 +267,9 @@ CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(authorId);
 CREATE INDEX IF NOT EXISTS idx_post_images_post ON post_images(postId, position);
 CREATE INDEX IF NOT EXISTS idx_messages_pair ON messages(fromUserId, toUserId, createdAt);
 CREATE INDEX IF NOT EXISTS idx_messages_to_created ON messages(toUserId, createdAt);
+CREATE INDEX IF NOT EXISTS idx_message_group_members_user ON message_group_members(userId);
+CREATE INDEX IF NOT EXISTS idx_message_group_messages_group ON message_group_messages(groupId, id);
+
 CREATE INDEX IF NOT EXISTS idx_videos_created ON videos(createdAt);
 CREATE INDEX IF NOT EXISTS idx_videos_author ON videos(authorId);
 CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(followingId);
