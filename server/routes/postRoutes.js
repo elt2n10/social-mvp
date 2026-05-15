@@ -4,6 +4,7 @@ const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { checkText } = require('../utils_moderation');
 const { saveUploadedFile } = require('../utils/storage');
+const { createActivity } = require('../utils/activity');
 const router = express.Router();
 
 const MAX_POST_TEXT = 500;
@@ -83,18 +84,27 @@ router.post('/', auth, notBlocked, upload.any(), async (req, res, next) => {
 
 router.post('/:id/like', auth, notBlocked, (req, res) => {
   const postId = Number(req.params.id);
+  const post = db.prepare('SELECT id, authorId FROM posts WHERE id = ?').get(postId);
+  if (!post) return res.status(404).json({ message: 'Пост не найден' });
   const exists = db.prepare('SELECT 1 FROM post_likes WHERE postId = ? AND userId = ?').get(postId, req.user.id);
   if (exists) db.prepare('DELETE FROM post_likes WHERE postId = ? AND userId = ?').run(postId, req.user.id);
-  else db.prepare('INSERT OR IGNORE INTO post_likes (postId, userId) VALUES (?, ?)').run(postId, req.user.id);
+  else {
+    db.prepare('INSERT OR IGNORE INTO post_likes (postId, userId) VALUES (?, ?)').run(postId, req.user.id);
+    createActivity({ userId: post.authorId, actorId: req.user.id, type: 'post_like', targetType: 'post', targetId: postId, text: 'лайкнул ваш пост' });
+  }
   res.json({ ok: true });
 });
 
 router.post('/:id/comments', auth, notBlocked, (req, res) => {
+  const postId = Number(req.params.id);
+  const post = db.prepare('SELECT id, authorId FROM posts WHERE id = ?').get(postId);
+  if (!post) return res.status(404).json({ message: 'Пост не найден' });
   const text = (req.body.text || '').trim();
   if (!text) return res.status(400).json({ message: 'Комментарий пустой' });
   const moderation = checkText(text);
   if (!moderation.ok) return res.status(400).json({ message: 'Комментарий не отправлен: ' + moderation.reason });
-  db.prepare('INSERT INTO comments (postId, authorId, text) VALUES (?, ?, ?)').run(req.params.id, req.user.id, text.slice(0, 1000));
+  db.prepare('INSERT INTO comments (postId, authorId, text) VALUES (?, ?, ?)').run(postId, req.user.id, text.slice(0, 1000));
+  createActivity({ userId: post.authorId, actorId: req.user.id, type: 'post_comment', targetType: 'post', targetId: postId, text: 'прокомментировал ваш пост' });
   res.json({ ok: true });
 });
 

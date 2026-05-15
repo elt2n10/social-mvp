@@ -1,13 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
+import Lightbox from '../components/Lightbox';
 import { MAX_POST_CHARS, MAX_POST_IMAGES, preparePostImages } from '../utils/media';
 
 const LIMIT = 20;
 
-function PostImages({ images = [] }) {
+function PostImages({ images = [], onOpen }) {
   if (!images.length) return null;
   return <div className={images.length === 1 ? 'postImages single' : 'postImages'}>
-    {images.slice(0, MAX_POST_IMAGES).map((url, i) => <img className="postImage" key={url + i} src={fileUrl(url)} alt="post" loading="lazy" />)}
+    {images.slice(0, MAX_POST_IMAGES).map((url, i) => <img className="postImage clickablePhoto" key={url + i} src={fileUrl(url)} alt="post" loading="lazy" onClick={() => onOpen?.(i)} />)}
   </div>;
 }
 
@@ -19,6 +20,7 @@ export default function Home({ openProfile }) {
   const [images, setImages] = useState([]);
   const [comment, setComment] = useState({});
   const [error, setError] = useState('');
+  const [lightbox, setLightbox] = useState(null);
   const [loading, setLoading] = useState(false);
   const fileRef = useRef(null);
 
@@ -111,7 +113,7 @@ export default function Home({ openProfile }) {
           <div><b>{p.authorName}</b><small>{new Date(p.createdAt).toLocaleString('ru-RU')} · ID поста: {p.id}</small></div>
         </div>
         {p.text && <p className="safeText">{p.text}</p>}
-        <PostImages images={p.imageUrls || (p.imageUrl ? [p.imageUrl] : [])} />
+        <PostImages images={p.imageUrls || (p.imageUrl ? [p.imageUrl] : [])} onOpen={(index) => setLightbox({ images: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []), index })} />
         <button className={p.likedByMe ? 'liked' : ''} onClick={()=>like(p.id)}>♥ {p.likes}</button>
         <div className="comments">
           {p.comments.map(c => <p className="safeText" key={c.id}><b className="clickable" onClick={()=>openProfile?.(c.authorId)}>{c.authorName}:</b> {c.text}</p>)}
@@ -120,5 +122,6 @@ export default function Home({ openProfile }) {
       </article>)}
       {hasMore && <button className="ghost loadMore" disabled={loading} onClick={()=>load(false)}>{loading ? 'Загрузка...' : 'Загрузить ещё'}</button>}
     </div>
+  {lightbox && <Lightbox images={lightbox.images} startIndex={lightbox.index} onClose={() => setLightbox(null)} />}
   </section>;
 }

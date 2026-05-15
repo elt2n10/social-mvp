@@ -4,7 +4,7 @@ const db = require('../database');
 const { auth, devOnly } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { getConfig } = require('./siteRoutes');
-const { isDevEmail, maskEmail } = require('../utils/security');
+const { isDevEmail } = require('../utils/security');
 const { saveUploadedFile } = require('../utils/storage');
 const router = express.Router();
 
@@ -38,7 +38,7 @@ router.get('/stats', auth, devOnly, (req, res) => {
 
 router.get('/users', auth, devOnly, (req, res) => {
   const users = db.prepare('SELECT id, username, email, avatar, coverUrl, description, isBlocked, isEmailVerified, createdAt FROM users ORDER BY id DESC LIMIT 200').all()
-    .map(u => ({ ...u, email: maskEmail(u.email), isBlocked: Boolean(u.isBlocked), isEmailVerified: Boolean(u.isEmailVerified), isDev: isDevEmail(u.email) }));
+    .map(u => ({ ...u, email: u.email, isBlocked: Boolean(u.isBlocked), isEmailVerified: Boolean(u.isEmailVerified), isDev: isDevEmail(u.email) }));
   res.json(users);
 });
 
@@ -118,6 +118,21 @@ router.put('/users/:id/cover/clear', auth, devOnly, (req, res) => {
   res.json({ ok: true });
 });
 
+router.post('/users/:id/badges', auth, devOnly, upload.single('badge'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Загрузи картинку бейджа' });
+    const title = String(req.body.title || 'badge').slice(0, 40);
+    const imageUrl = await saveUploadedFile(req.file, 'yved/badges');
+    const r = db.prepare('INSERT INTO user_badges (userId, imageUrl, title) VALUES (?, ?, ?)').run(req.params.id, imageUrl, title);
+    res.json({ ok: true, id: r.lastInsertRowid, imageUrl, title });
+  } catch(e) { next(e); }
+});
+
+router.delete('/badges/:id', auth, devOnly, (req, res) => {
+  db.prepare('DELETE FROM user_badges WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 router.get('/backup', auth, devOnly, (req, res) => {
   const backup = {
     exportedAt: new Date().toISOString(),
@@ -128,6 +143,9 @@ router.get('/backup', auth, devOnly, (req, res) => {
     videos: db.prepare('SELECT * FROM videos').all(),
     video_comments: db.prepare('SELECT * FROM video_comments').all(),
     follows: db.prepare('SELECT * FROM follows').all(),
+    profile_likes: db.prepare('SELECT * FROM profile_likes').all(),
+    activity_events: db.prepare('SELECT * FROM activity_events').all(),
+    user_badges: db.prepare('SELECT * FROM user_badges').all(),
     site_config: db.prepare('SELECT * FROM site_config').all()
   };
   res.json(backup);

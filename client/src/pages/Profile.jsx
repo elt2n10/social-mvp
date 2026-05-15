@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
+import Lightbox from '../components/Lightbox';
 import { MAX_POST_CHARS, MAX_POST_IMAGES, preparePostImages, validateVideoFile } from '../utils/media';
 
-function PostImages({ images = [] }) {
+function PostImages({ images = [], onOpen }) {
   if (!images.length) return null;
   return <div className={images.length === 1 ? 'postImages single' : 'postImages'}>
-    {images.slice(0, MAX_POST_IMAGES).map((url, i) => <img className="postImage" key={url + i} src={fileUrl(url)} alt="post" loading="lazy" />)}
+    {images.slice(0, MAX_POST_IMAGES).map((url, i) => <img className="postImage clickablePhoto" key={url + i} src={fileUrl(url)} alt="post" loading="lazy" onClick={() => onOpen?.(i)} />)}
   </div>;
 }
 
@@ -25,6 +26,7 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
   const [videoFile, setVideoFile] = useState(null);
   const [videoDuration, setVideoDuration] = useState(0);
   const [error, setError] = useState('');
+  const [lightbox, setLightbox] = useState(null);
   const postFileRef = useRef(null);
   const videoFileRef = useRef(null);
   const isMe = Number(profileId) === Number(user.id);
@@ -126,22 +128,29 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
     await load();
   }
 
-  if (!profile) return <section><h1>Профиль</h1><div className="card">Загрузка...</div></section>;
+  async function toggleProfileLike() {
+    if (!profile || profile.isMe) return;
+    await api(`/api/profile/${profile.id}/like`, { method: 'POST' });
+    await load();
+  }
+
+  if (!profile) return <section><h1>Профиль</h1><div className="card">Загрузка...</div>{lightbox && <Lightbox images={lightbox.images} startIndex={lightbox.index} onClose={() => setLightbox(null)} />}
+  </section>;
 
   return <section>
     <h1>{isMe ? 'Профиль' : `Профиль ${profile.username}`}</h1>
     {error && <p className="error">{error}</p>}
     <div className="card profileTop profileCard" style={{ borderColor: profile.profileColor || undefined }}>
-      <div className="cover" style={{ backgroundImage: profile.coverUrl ? `url(${fileUrl(profile.coverUrl)})` : undefined, backgroundColor: profile.profileColor || undefined }} />
+      <div className="cover clickablePhoto" onClick={() => profile.coverUrl && setLightbox({ images: [profile.coverUrl], index: 0 })} style={{ backgroundImage: profile.coverUrl ? `url(${fileUrl(profile.coverUrl)})` : undefined, backgroundColor: profile.profileColor || undefined }} />
       <div className="profileInfo">
-        {profile.avatar ? <img className="bigAvatar" src={fileUrl(profile.avatar)} /> : <div className="avatar huge">{profile.username?.[0]}</div>}
+        {profile.avatar ? <img className="bigAvatar clickablePhoto" onClick={() => setLightbox({ images: [profile.avatar], index: 0 })} src={fileUrl(profile.avatar)} /> : <div className="avatar huge">{profile.username?.[0]}</div>}
         <div className="profileText">
-          <h2>{profile.username}</h2>
+          <h2>{profile.username} <span className="handle">{profile.handle || '@' + profile.username}</span>{profile.badges?.map(b => <img key={b.id} className="badgeIcon" src={fileUrl(b.imageUrl)} title={b.title || 'badge'} />)}</h2>
           <p className="safeText">{profile.description || 'Описание пока пустое'}</p>
           <small>Дата регистрации: {new Date(profile.createdAt).toLocaleDateString('ru-RU')}</small>
-          <div className="followStats"><span>{profile.followersCount || 0} подписчиков</span><span>{profile.followingCount || 0} подписок</span>{profile.isFriend && <b>Друзья</b>}</div>
+          <div className="followStats"><span>{profile.followersCount || 0} подписчиков</span><span>{profile.followingCount || 0} подписок</span><span>♥ профиля: {profile.profileLikes || 0}</span><span>популярность: {profile.popularity || 0}</span>{profile.isFriend && <b>Друзья</b>}</div>
         </div>
-        {isMe ? <button onClick={()=>setEdit(!edit)}>Редактировать</button> : <div className="profileActions"><button onClick={toggleFollow}>{profile.isFollowing ? 'Отписаться' : 'Подписаться'}</button><button className="ghost" onClick={openMessages}>Написать</button></div>}
+        {isMe ? <button onClick={()=>setEdit(!edit)}>Редактировать</button> : <div className="profileActions"><button onClick={toggleFollow}>{profile.isFollowing ? 'Отписаться' : 'Подписаться'}</button><button className={profile.likedProfile ? 'liked' : 'ghost'} onClick={toggleProfileLike}>♥ Профиль</button><button className="ghost" onClick={openMessages}>Написать</button></div>}
       </div>
     </div>
 
@@ -179,8 +188,9 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
     </div>}
 
     <h2>Посты</h2>
-    <div className="grid">{posts.map(p=><div className="card" key={p.id}><p className="safeText">{p.text}</p><PostImages images={p.imageUrls || (p.imageUrl ? [p.imageUrl] : [])}/><small>♥ {p.likes}</small></div>)}</div>
+    <div className="grid">{posts.map(p=><div className="card" key={p.id}><p className="safeText">{p.text}</p><PostImages images={p.imageUrls || (p.imageUrl ? [p.imageUrl] : [])} onOpen={(index) => setLightbox({ images: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []), index })}/><small>♥ {p.likes}</small></div>)}</div>
     <h2>Видео</h2>
     <div className="grid">{videos.map(v=><div className="card" key={v.id}><video className="miniVideo" src={fileUrl(v.videoUrl)} controls/><p className="safeText">{v.description}</p><small>♥ {v.likes}</small></div>)}</div>
+  {lightbox && <Lightbox images={lightbox.images} startIndex={lightbox.index} onClose={() => setLightbox(null)} />}
   </section>;
 }

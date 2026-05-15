@@ -116,6 +116,39 @@ CREATE TABLE IF NOT EXISTS follows (
   FOREIGN KEY(followingId) REFERENCES users(id) ON DELETE CASCADE
 );
 
+
+CREATE TABLE IF NOT EXISTS profile_likes (
+  profileId INTEGER NOT NULL,
+  userId INTEGER NOT NULL,
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY(profileId, userId),
+  FOREIGN KEY(profileId) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS activity_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  userId INTEGER NOT NULL,
+  actorId INTEGER,
+  type TEXT NOT NULL,
+  targetType TEXT DEFAULT '',
+  targetId INTEGER,
+  text TEXT DEFAULT '',
+  isRead INTEGER DEFAULT 0,
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY(actorId) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_badges (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  userId INTEGER NOT NULL,
+  imageUrl TEXT NOT NULL,
+  title TEXT DEFAULT '',
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(userId) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS reports (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   targetType TEXT NOT NULL,
@@ -196,6 +229,12 @@ CREATE INDEX IF NOT EXISTS idx_videos_author ON videos(authorId);
 CREATE INDEX IF NOT EXISTS idx_follows_following ON follows(followingId);
 CREATE INDEX IF NOT EXISTS idx_follows_follower ON follows(followerId);
 CREATE INDEX IF NOT EXISTS idx_online_last_seen ON online_status(lastSeen);
+
+CREATE INDEX IF NOT EXISTS idx_profile_likes_profile ON profile_likes(profileId);
+CREATE INDEX IF NOT EXISTS idx_activity_user_created ON activity_events(userId, createdAt);
+CREATE INDEX IF NOT EXISTS idx_activity_read ON activity_events(userId, isRead);
+CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(userId);
+
 `);
 
 module.exports = db;

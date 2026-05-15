@@ -8,6 +8,7 @@ import Videos from './pages/Videos';
 import Messages from './pages/Messages';
 import Profile from './pages/Profile';
 import Settings from './pages/Settings';
+import Activity from './pages/Activity';
 
 const defaultConfig = {
   siteName: 'Yved',
@@ -53,6 +54,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [config, setConfig] = useState(defaultConfig);
   const [onlineCount, setOnlineCount] = useState(0);
+  const [activityUnread, setActivityUnread] = useState(0);
 
   useEffect(() => {
     // Старые версии сохраняли devAccess в localStorage и из-за этого кнопки разработчика
@@ -65,7 +67,7 @@ export default function App() {
   // Вкладки теперь живут в hash URL: #home, #videos, #messages, #profile, #settings.
   // Поэтому кнопка «Назад» в браузере переключает вкладки, а не выбрасывает с сайта.
   useEffect(() => {
-    const allowed = ['home', 'videos', 'messages', 'profile', 'settings'];
+    const allowed = ['home', 'videos', 'messages', 'activity', 'profile', 'settings'];
     const syncFromHash = () => {
       const next = window.location.hash.replace('#', '');
       if (allowed.includes(next)) setPage(next);
@@ -112,7 +114,11 @@ export default function App() {
       try {
         await api('/api/live/heartbeat', { method: 'POST' });
         const summary = await api('/api/live/summary');
-        if (alive) setOnlineCount(summary.onlineCount || 0);
+        const unread = await api('/api/activity/unread-count').catch(() => ({ count: 0 }));
+        if (alive) {
+          setOnlineCount(summary.onlineCount || 0);
+          setActivityUnread(unread.count || 0);
+        }
       } catch {}
     }
     ping();
@@ -150,6 +156,15 @@ export default function App() {
     return () => document.removeEventListener('click', listener);
   }, [config.soundsEnabled]);
 
+  useEffect(() => {
+    if (!user || activityUnread <= 0 || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const last = Number(sessionStorage.getItem('lastActivityNotify') || 0);
+    const now = Date.now();
+    if (now - last < 30000) return;
+    sessionStorage.setItem('lastActivityNotify', String(now));
+    try { new Notification('Yved', { body: `Новых событий: ${activityUnread}` }); } catch {}
+  }, [activityUnread, user?.id]);
+
   async function checkDev(e) {
     e.preventDefault();
     setError('');
@@ -179,10 +194,11 @@ export default function App() {
   if (!user) return <Auth onAuth={(u) => { setUser(u); activateDevEmail(u); }} config={config} />;
 
   return <>
-    <Layout page={page} setPage={goPage} user={user} config={config} onlineCount={onlineCount} openMyProfile={openMyProfile}>
+    <Layout page={page} setPage={goPage} user={user} config={config} onlineCount={onlineCount} activityUnread={activityUnread} openMyProfile={openMyProfile}>
       {page === 'home' && <Home openProfile={openProfile} />}
       {page === 'videos' && <Videos openProfile={openProfile} />}
       {page === 'messages' && <Messages me={user} openProfile={openProfile} config={config} />}
+      {page === 'activity' && <Activity />}
       {page === 'profile' && <Profile user={user} setUser={setUser} profileId={profileId || user.id} openMessages={() => goPage('messages')} />}
       {page === 'settings' && <Settings onLogout={logout} onDevSecret={() => setDevLogin(true)} devUnlocked={devUnlocked} onOpenDevPanel={() => setDevPanel(true)} onExitDev={() => { clearDevToken(); setDevUnlocked(false); setDevPanel(false); }} config={config} setConfig={(cfg) => { const merged = { ...config, ...cfg }; setConfig(merged); applyConfig(merged); }} />}
     </Layout>

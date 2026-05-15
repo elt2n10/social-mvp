@@ -10,6 +10,8 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
   const [logo, setLogo] = useState(null);
   const [favicon, setFavicon] = useState(null);
   const [error, setError] = useState('');
+  const [badgeFiles, setBadgeFiles] = useState({});
+  const [badgeTitles, setBadgeTitles] = useState({});
 
   async function load() {
     try {
@@ -47,6 +49,17 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
     a.download = `yved-backup-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function uploadBadge(userId) {
+    const file = badgeFiles[userId];
+    if (!file) throw new Error('Выбери картинку бейджа');
+    const fd = new FormData();
+    fd.append('badge', file);
+    fd.append('title', badgeTitles[userId] || 'badge');
+    await api(`/api/dev/users/${userId}/badges`, { method: 'POST', body: fd });
+    setBadgeFiles(prev => ({ ...prev, [userId]: null }));
+    setBadgeTitles(prev => ({ ...prev, [userId]: '' }));
   }
 
   return <div className="modalBackdrop">
@@ -94,6 +107,9 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
           <div className="devActions">
             {u.avatar && <button className="ghost" onClick={()=>action(()=>api(`/api/dev/users/${u.id}/avatar/clear`, { method:'PUT' }))}>Убрать аватар</button>}
             {u.coverUrl && <button className="ghost" onClick={()=>action(()=>api(`/api/dev/users/${u.id}/cover/clear`, { method:'PUT' }))}>Убрать обложку</button>}
+            <input className="devSmallInput" placeholder="Название бейджа" value={badgeTitles[u.id] || ''} onChange={e => setBadgeTitles(prev => ({ ...prev, [u.id]: e.target.value }))} />
+            <label className="fileButton devBadgeButton">Бейдж<input type="file" accept="image/*" onChange={e => setBadgeFiles(prev => ({ ...prev, [u.id]: e.target.files?.[0] || null }))} /></label>
+            <button className="ghost" onClick={()=>action(()=>uploadBadge(u.id))}>Выдать бейдж</button>
             <button onClick={()=>action(()=>api(`/api/dev/users/${u.id}/${u.isBlocked ? 'unblock':'block'}`, { method:'PUT' }))}>{u.isBlocked ? 'Разблокировать' : 'Заблокировать'}</button>
             <button className="danger" onClick={()=>{ if(confirm(`Удалить аккаунт ${u.username} навсегда?`)) action(()=>api(`/api/dev/users/${u.id}`, { method:'DELETE' })); }}>Удалить аккаунт</button>
           </div>

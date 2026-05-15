@@ -41,11 +41,7 @@ export default function Auth({ onAuth, config }) {
 
       const path = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
       const body = mode === 'register'
-        ? {
-            ...form,
-            captchaId: captcha?.captchaId,
-            captchaAnswer: String(form.captchaAnswer || '').trim()
-          }
+        ? { ...form, captchaId: captcha?.captchaId }
         : form;
       const data = await api(path, { method:'POST', body: JSON.stringify(body) });
 

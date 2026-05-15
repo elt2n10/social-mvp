@@ -4,6 +4,7 @@ const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { checkText } = require('../utils_moderation');
 const { saveUploadedFile } = require('../utils/storage');
+const { createActivity } = require('../utils/activity');
 const router = express.Router();
 const MAX_VIDEO_SECONDS = 60;
 
@@ -48,18 +49,28 @@ router.post('/', auth, notBlocked, upload.single('video'), async (req, res, next
 });
 
 router.post('/:id/like', auth, notBlocked, (req, res) => {
-  const exists = db.prepare('SELECT 1 FROM video_likes WHERE videoId = ? AND userId = ?').get(req.params.id, req.user.id);
-  if (exists) db.prepare('DELETE FROM video_likes WHERE videoId = ? AND userId = ?').run(req.params.id, req.user.id);
-  else db.prepare('INSERT OR IGNORE INTO video_likes (videoId, userId) VALUES (?, ?)').run(req.params.id, req.user.id);
+  const videoId = Number(req.params.id);
+  const video = db.prepare('SELECT id, authorId FROM videos WHERE id = ?').get(videoId);
+  if (!video) return res.status(404).json({ message: 'Видео не найдено' });
+  const exists = db.prepare('SELECT 1 FROM video_likes WHERE videoId = ? AND userId = ?').get(videoId, req.user.id);
+  if (exists) db.prepare('DELETE FROM video_likes WHERE videoId = ? AND userId = ?').run(videoId, req.user.id);
+  else {
+    db.prepare('INSERT OR IGNORE INTO video_likes (videoId, userId) VALUES (?, ?)').run(videoId, req.user.id);
+    createActivity({ userId: video.authorId, actorId: req.user.id, type: 'video_like', targetType: 'video', targetId: videoId, text: 'лайкнул ваше видео' });
+  }
   res.json({ ok: true });
 });
 
 router.post('/:id/comments', auth, notBlocked, (req, res) => {
+  const videoId = Number(req.params.id);
+  const video = db.prepare('SELECT id, authorId FROM videos WHERE id = ?').get(videoId);
+  if (!video) return res.status(404).json({ message: 'Видео не найдено' });
   const text = (req.body.text || '').trim();
   if (!text) return res.status(400).json({ message: 'Комментарий пустой' });
   const moderation = checkText(text);
   if (!moderation.ok) return res.status(400).json({ message: 'Комментарий не отправлен: ' + moderation.reason });
-  db.prepare('INSERT INTO video_comments (videoId, authorId, text) VALUES (?, ?, ?)').run(req.params.id, req.user.id, text.slice(0, 1000));
+  db.prepare('INSERT INTO video_comments (videoId, authorId, text) VALUES (?, ?, ?)').run(videoId, req.user.id, text.slice(0, 1000));
+  createActivity({ userId: video.authorId, actorId: req.user.id, type: 'video_comment', targetType: 'video', targetId: videoId, text: 'прокомментировал ваше видео' });
   res.json({ ok: true });
 });
 
