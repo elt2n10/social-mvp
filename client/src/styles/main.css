@@ -136,3 +136,17 @@ body.videoMode .tiktokCard{height:calc(100vh - 46px);max-height:820px;scroll-sna
 .groupCreator{margin-bottom:14px;display:grid;gap:10px}.colorInput{max-width:70px;min-height:44px;padding:4px}.pickedMembers{display:flex;flex-wrap:wrap;gap:8px}.pickedMembers span{display:inline-flex;align-items:center;gap:6px;background:#1b1e2d;border:1px solid #ffffff12;border-radius:999px;padding:6px 8px}.pickedMembers button{width:22px;height:22px;padding:0;border-radius:50%;background:#ffffff18}.messageAuthor{font-weight:900;color:#c5b8ff;margin-bottom:3px}.stableMessagesBox,.stableMessagesBox *{backface-visibility:hidden}.noFlickerChat{will-change:scroll-position}.dialogItem,.bubble,.chatHeader{transition:background-color .16s ease,border-color .16s ease!important}.dialogItem:hover{transform:none!important;filter:none!important;background:#1b1f31!important}
 
 @media(max-width:760px){body.videoMode .content.centeredContent{height:calc(100vh - 64px);padding:8px 8px 72px}body.videoMode .videoFeed.tiktokFeed{height:calc(100vh - 90px)}body.videoMode .tiktokCard{height:calc(100vh - 110px)}}
+
+
+/* ===== Yved video containment / comments / notification badges fix ===== */
+.videoPage.tiktokVideoPage{max-width:100%;overflow:hidden!important}
+.videoFeed.tiktokFeed{max-width:100%;overflow-x:hidden!important;scrollbar-width:none}
+.videoFeed.tiktokFeed::-webkit-scrollbar{display:none}
+.tiktokCard,.videoCard{overflow:hidden!important;max-width:100%;contain:layout paint}
+.tiktokCard video,.videoCard video{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important;background:#000!important}
+.roundAction small{font-size:12px;font-weight:900;color:#fff;margin-top:2px}.commentsTitle{display:block;margin-bottom:6px;color:#fff}
+.tiktokComments{display:none}.tiktokComments.open{display:block}
+.navBadge{min-width:22px;max-width:34px;overflow:hidden;white-space:nowrap}.navBadge.mobile{right:8px;top:3px}
+.bottomNav button{position:relative}.sidebar nav button{position:relative}
+@media(min-width:1100px){body.videoMode .centeredContent{overflow:hidden!important}.videoFeed.tiktokFeed{width:min(500px,100%)!important}.tiktokCard{width:min(470px,100%)!important;height:min(820px,calc(100vh - 48px))!important;margin:0 auto}.tiktokComments.open{left:12px;right:90px;bottom:10px!important;max-height:220px;overflow:auto}}
+@media(max-width:760px){body.videoMode .content.centeredContent{width:100vw!important;max-width:100vw!important;overflow:hidden!important;padding-left:6px!important;padding-right:6px!important}.videoPage.tiktokVideoPage{width:100%!important}.videoFeed.tiktokFeed{width:100%!important;height:calc(100dvh - 86px)!important;overflow-y:auto!important;overflow-x:hidden!important}.tiktokCard{width:100%!important;height:calc(100dvh - 104px)!important;max-height:none!important;border-radius:22px!important;margin:0 auto}.tiktokOverlay{left:14px!important;right:72px!important;bottom:92px!important}.tiktokActions{right:10px!important;bottom:116px!important}.tiktokComments.open{left:8px!important;right:8px!important;bottom:8px!important;max-height:42vh;overflow:auto}.roundAction{width:54px!important;height:54px!important;padding:5px!important}}

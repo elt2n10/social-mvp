@@ -55,6 +55,7 @@ export default function App() {
   const [config, setConfig] = useState(defaultConfig);
   const [onlineCount, setOnlineCount] = useState(0);
   const [activityUnread, setActivityUnread] = useState(0);
+  const [messageUnread, setMessageUnread] = useState(0);
 
   useEffect(() => {
     // Старые версии сохраняли devAccess в localStorage и из-за этого кнопки разработчика
@@ -115,14 +116,16 @@ export default function App() {
         await api('/api/live/heartbeat', { method: 'POST' });
         const summary = await api('/api/live/summary');
         const unread = await api('/api/activity/unread-count').catch(() => ({ count: 0 }));
+        const msgUnread = await api('/api/messages/unread-count').catch(() => ({ count: 0 }));
         if (alive) {
           setOnlineCount(summary.onlineCount || 0);
           setActivityUnread(unread.count || 0);
+          setMessageUnread(msgUnread.count || 0);
         }
       } catch {}
     }
     ping();
-    const timer = setInterval(ping, 7000);
+    const timer = setInterval(ping, 3500);
     return () => { alive = false; clearInterval(timer); };
   }, [user?.id]);
 
@@ -165,6 +168,16 @@ export default function App() {
     try { new Notification('Yved', { body: `Новых событий: ${activityUnread}` }); } catch {}
   }, [activityUnread, user?.id]);
 
+
+  useEffect(() => {
+    if (!user || messageUnread <= 0 || !('Notification' in window) || Notification.permission !== 'granted') return;
+    const last = Number(sessionStorage.getItem('lastMessageNotify') || 0);
+    const now = Date.now();
+    if (now - last < 9000) return;
+    sessionStorage.setItem('lastMessageNotify', String(now));
+    try { new Notification('Yved', { body: messageUnread > 99 ? 'Новых сообщений: 99+' : `Новых сообщений: ${messageUnread}` }); } catch {}
+  }, [messageUnread, user?.id]);
+
   async function checkDev(e) {
     e.preventDefault();
     setError('');
@@ -194,7 +207,7 @@ export default function App() {
   if (!user) return <Auth onAuth={(u) => { setUser(u); activateDevEmail(u); }} config={config} />;
 
   return <>
-    <Layout page={page} setPage={goPage} user={user} config={config} onlineCount={onlineCount} activityUnread={activityUnread} openMyProfile={openMyProfile}>
+    <Layout page={page} setPage={goPage} user={user} config={config} onlineCount={onlineCount} activityUnread={activityUnread} messageUnread={messageUnread} openMyProfile={openMyProfile}>
       {page === 'home' && <Home openProfile={openProfile} />}
       {page === 'videos' && <Videos openProfile={openProfile} />}
       {page === 'messages' && <Messages me={user} openProfile={openProfile} config={config} />}

@@ -15,10 +15,21 @@ function makeHandle(username) {
   return '@' + String(username || 'user').replace(/^@+/, '').toLowerCase();
 }
 
-export default function Layout({ page, setPage, user, children, config, onlineCount, activityUnread = 0, openMyProfile }) {
+export default function Layout({ page, setPage, user, children, config, onlineCount, activityUnread = 0, messageUnread = 0, openMyProfile }) {
   function go(key) {
     if (key === 'profile') return openMyProfile?.();
     setPage(key);
+  }
+
+  function badgeText(count) {
+    const n = Number(count) || 0;
+    return n > 99 ? '99+' : String(n);
+  }
+
+  function badgeFor(key) {
+    if (key === 'activity') return activityUnread;
+    if (key === 'messages') return messageUnread;
+    return 0;
   }
 
   return <div className="appShell centeredShell">
@@ -40,7 +51,7 @@ export default function Layout({ page, setPage, user, children, config, onlineCo
           <button key={key} className={page === key ? 'active' : ''} onClick={() => go(key)}>
             <Icon size={19}/>
             {label}
-            {key === 'activity' && activityUnread > 0 && <span className="navBadge">{activityUnread}</span>}
+            {badgeFor(key) > 0 && <span className="navBadge">{badgeText(badgeFor(key))}</span>}
           </button>
         ))}
       </nav>
@@ -74,7 +85,7 @@ export default function Layout({ page, setPage, user, children, config, onlineCo
         <button key={key} className={page === key ? 'active' : ''} onClick={() => go(key)}>
           <Icon size={20}/>
           <small>{label}</small>
-          {key === 'activity' && activityUnread > 0 && <span className="navBadge mobile">{activityUnread}</span>}
+          {badgeFor(key) > 0 && <span className="navBadge mobile">{badgeText(badgeFor(key))}</span>}
         </button>
       ))}
     </nav>

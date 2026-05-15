@@ -10,6 +10,8 @@ function textFor(item) {
   if (item.type === 'video_comment') return `${actor} прокомментировал ваше видео`;
   if (item.type === 'follow') return `${actor} подписался на вас`;
   if (item.type === 'friend') return `${actor} теперь ваш друг`;
+  if (item.type === 'message') return `${actor} написал вам сообщение`;
+  if (item.type === 'group_message') return `${actor} написал в группе`;
   return `${actor} ${item.text || 'сделал действие'}`;
 }
 
@@ -24,7 +26,7 @@ export default function Activity() {
 
   useEffect(() => {
     load().catch(e => setError(e.message));
-    const timer = setInterval(() => load().catch(() => {}), 4500);
+    const timer = setInterval(() => load().catch(() => {}), 3000);
     return () => clearInterval(timer);
   }, []);
 

@@ -14,6 +14,7 @@ export default function Videos({ openProfile }) {
   const [comment, setComment] = useState({});
   const [hasMore, setHasMore] = useState(true);
   const [soundOn, setSoundOn] = useState(true);
+  const [openComments, setOpenComments] = useState(null);
   const videoRefs = useRef({});
 
   useEffect(() => {
@@ -121,12 +122,14 @@ export default function Videos({ openProfile }) {
         </div>
         <div className="videoActions tiktokActions">
           <button className={v.likedByMe ? 'liked roundAction' : 'roundAction'} onClick={()=>like(v.id)}>♥<small>{v.likes}</small></button>
+          <button className="roundAction ghost" onClick={()=>setOpenComments(openComments === v.id ? null : v.id)}>💬<small>{v.comments?.length || 0}</small></button>
           <button className="roundAction ghost" onClick={toggleSound}>{soundOn ? '🔊' : '🔇'}</button>
         </div>
-        <div className="comments videoComments tiktokComments">
-          {v.comments.slice(-2).map(c => <p className="safeText" key={c.id}><b className="clickable" onClick={()=>openProfile?.(c.authorId)}>{c.authorName}:</b> {c.text}</p>)}
+        {openComments === v.id && <div className="comments videoComments tiktokComments open">
+          <b className="commentsTitle">Комментарии</b>
+          {v.comments.slice(-8).map(c => <p className="safeText" key={c.id}><b className="clickable" onClick={()=>openProfile?.(c.authorId)}>{c.authorName}:</b> {c.text}</p>)}
           <div className="row commentRow"><input placeholder="Коммент" value={comment[v.id] || ''} onChange={e=>setComment({...comment,[v.id]:e.target.value})}/><button onClick={()=>addComment(v.id)}>OK</button></div>
-        </div>
+        </div>}
       </div>)}
       {hasMore && <button className="ghost loadMore videoLoad" onClick={()=>load(false)}>Ещё видео</button>}
     </div>

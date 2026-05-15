@@ -4,6 +4,7 @@ const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { saveUploadedFile } = require('../utils/storage');
 const { checkText } = require('../utils_moderation');
+const { createActivity } = require('../utils/activity');
 const router = express.Router();
 
 function ensureGroupMember(groupId, userId) {
@@ -41,6 +42,12 @@ router.get('/dialogs', auth, (req, res) => {
   `).all(req.user.id);
 
   res.json([...privateRows, ...groupRows].sort((a, b) => String(b.lastAt || '').localeCompare(String(a.lastAt || ''))));
+});
+
+router.get('/unread-count', auth, (req, res) => {
+  const privateCount = db.prepare('SELECT COUNT(*) count FROM messages WHERE toUserId = ? AND isRead = 0').get(req.user.id).count;
+  // Для групп пока считаем только личные непрочитанные, потому что у групповых сообщений нет per-user read state.
+  res.json({ count: privateCount });
 });
 
 router.get('/stickers', auth, (req, res) => {
@@ -169,6 +176,7 @@ router.post('/send', auth, notBlocked, (req, res) => {
       INSERT INTO messages (fromUserId, toUserId, text, messageType, stickerUrl)
       VALUES (?, ?, ?, 'sticker', ?)
     `).run(req.user.id, toUserId, sticker.name || 'sticker', sticker.imageUrl);
+    createActivity(toUserId, req.user.id, 'message', 'message', r.lastInsertRowid, 'отправил стикер');
     return res.json({ id: r.lastInsertRowid });
   }
 
@@ -180,6 +188,7 @@ router.post('/send', auth, notBlocked, (req, res) => {
     INSERT INTO messages (fromUserId, toUserId, text, messageType, stickerUrl)
     VALUES (?, ?, ?, 'text', '')
   `).run(req.user.id, toUserId, clean.slice(0, 2000));
+  createActivity(toUserId, req.user.id, 'message', 'message', r.lastInsertRowid, clean.slice(0, 80));
   res.json({ id: r.lastInsertRowid });
 });
 
@@ -195,6 +204,8 @@ router.post('/groups/:groupId/send', auth, notBlocked, (req, res) => {
       INSERT INTO message_group_messages (groupId, fromUserId, text, messageType, stickerUrl)
       VALUES (?, ?, ?, 'sticker', ?)
     `).run(groupId, req.user.id, sticker.name || 'sticker', sticker.imageUrl);
+    const members = db.prepare('SELECT userId FROM message_group_members WHERE groupId = ? AND userId != ?').all(groupId, req.user.id);
+    for (const m of members) createActivity(m.userId, req.user.id, 'group_message', 'group', groupId, 'отправил стикер в группе');
     return res.json({ id: r.lastInsertRowid });
   }
 
@@ -206,6 +217,8 @@ router.post('/groups/:groupId/send', auth, notBlocked, (req, res) => {
     INSERT INTO message_group_messages (groupId, fromUserId, text, messageType, stickerUrl)
     VALUES (?, ?, ?, 'text', '')
   `).run(groupId, req.user.id, clean.slice(0, 2000));
+  const members = db.prepare('SELECT userId FROM message_group_members WHERE groupId = ? AND userId != ?').all(groupId, req.user.id);
+  for (const m of members) createActivity(m.userId, req.user.id, 'group_message', 'group', groupId, clean.slice(0, 80));
   res.json({ id: r.lastInsertRowid });
 });
 
