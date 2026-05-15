@@ -145,7 +145,7 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
       <div className="profileInfo">
         {profile.avatar ? <img className="bigAvatar clickablePhoto" onClick={() => setLightbox({ images: [profile.avatar], index: 0 })} src={fileUrl(profile.avatar)} /> : <div className="avatar huge">{profile.username?.[0]}</div>}
         <div className="profileText">
-          <h2>{profile.username} <span className="handle">{profile.handle || '@' + profile.username}</span>{profile.badges?.map(b => <img key={b.id} className="badgeIcon" src={fileUrl(b.imageUrl)} title={b.title || 'badge'} />)}</h2>
+          <div className="profileNameBlock"><h2>{profile.displayName || profile.username}{profile.badges?.map(b => <img key={b.id} className="badgeIcon" src={fileUrl(b.imageUrl)} title={b.title || 'badge'} />)}</h2><small className="profileHandle">{profile.handle || '@' + profile.username}</small></div>
           <p className="safeText">{profile.description || 'Описание пока пустое'}</p>
           <small>Дата регистрации: {new Date(profile.createdAt).toLocaleDateString('ru-RU')}</small>
           <div className="followStats"><span>{profile.followersCount || 0} подписчиков</span><span>{profile.followingCount || 0} подписок</span><span>♥ профиля: {profile.profileLikes || 0}</span><span>популярность: {profile.popularity || 0}</span>{profile.isFriend && <b>Друзья</b>}</div>

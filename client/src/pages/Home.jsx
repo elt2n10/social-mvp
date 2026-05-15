@@ -5,6 +5,10 @@ import { MAX_POST_CHARS, MAX_POST_IMAGES, preparePostImages } from '../utils/med
 
 const LIMIT = 20;
 
+function makeHandle(username) {
+  return '@' + String(username || 'user').replace(/^@+/, '').toLowerCase();
+}
+
 function PostImages({ images = [], onOpen }) {
   if (!images.length) return null;
   return <div className={images.length === 1 ? 'postImages single' : 'postImages'}>
@@ -110,7 +114,7 @@ export default function Home({ openProfile }) {
       {posts.map(p => <article className="card post pop" key={p.id}>
         <div className="postHead clickable" onClick={()=>openProfile?.(p.authorId)}>
           {p.authorAvatar ? <img className="avatarImage small" src={fileUrl(p.authorAvatar)} /> : <div className="avatar small">{p.authorName?.[0]}</div>}
-          <div><b>{p.authorName}</b><small>{new Date(p.createdAt).toLocaleString('ru-RU')} · ID поста: {p.id}</small></div>
+          <div className="nameStack"><b>{p.authorDisplayName || p.authorName}</b><small className="userHandle">{p.authorHandle || makeHandle(p.authorName)}</small><small>{new Date(p.createdAt).toLocaleString('ru-RU')} · ID поста: {p.id}</small></div>
         </div>
         {p.text && <p className="safeText">{p.text}</p>}
         <PostImages images={p.imageUrls || (p.imageUrl ? [p.imageUrl] : [])} onOpen={(index) => setLightbox({ images: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []), index })} />
