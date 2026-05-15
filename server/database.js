@@ -72,6 +72,14 @@ CREATE TABLE IF NOT EXISTS messages (
   FOREIGN KEY(toUserId) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS stickers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  imageUrl TEXT NOT NULL,
+  isHidden INTEGER DEFAULT 0,
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE IF NOT EXISTS videos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   authorId INTEGER NOT NULL,
@@ -196,6 +204,8 @@ addColumnIfMissing('posts', 'moderationReason', "moderationReason TEXT DEFAULT '
 addColumnIfMissing('videos', 'isHidden', 'isHidden INTEGER DEFAULT 0');
 addColumnIfMissing('videos', 'moderationStatus', "moderationStatus TEXT DEFAULT 'approved'");
 addColumnIfMissing('videos', 'moderationReason', "moderationReason TEXT DEFAULT ''");
+addColumnIfMissing('messages', 'messageType', "messageType TEXT DEFAULT 'text'");
+addColumnIfMissing('messages', 'stickerUrl', "stickerUrl TEXT DEFAULT ''");
 
 const defaultConfig = {
   siteName: 'Yved',
@@ -234,6 +244,7 @@ CREATE INDEX IF NOT EXISTS idx_profile_likes_profile ON profile_likes(profileId)
 CREATE INDEX IF NOT EXISTS idx_activity_user_created ON activity_events(userId, createdAt);
 CREATE INDEX IF NOT EXISTS idx_activity_read ON activity_events(userId, isRead);
 CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(userId);
+CREATE INDEX IF NOT EXISTS idx_stickers_hidden ON stickers(isHidden, createdAt);
 
 `);
 

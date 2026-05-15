@@ -32,7 +32,8 @@ router.get('/stats', auth, devOnly, (req, res) => {
     hiddenPosts: db.prepare('SELECT COUNT(*) count FROM posts WHERE isHidden = 1').get().count,
     videos: db.prepare('SELECT COUNT(*) count FROM videos WHERE isHidden = 0').get().count,
     hiddenVideos: db.prepare('SELECT COUNT(*) count FROM videos WHERE isHidden = 1').get().count,
-    reports: db.prepare('SELECT COUNT(*) count FROM reports').get().count
+    reports: db.prepare('SELECT COUNT(*) count FROM reports').get().count,
+    stickers: db.prepare('SELECT COUNT(*) count FROM stickers WHERE isHidden = 0').get().count
   });
 });
 
@@ -133,6 +134,38 @@ router.delete('/badges/:id', auth, devOnly, (req, res) => {
   res.json({ ok: true });
 });
 
+
+router.get('/stickers', auth, devOnly, (req, res) => {
+  const stickers = db.prepare('SELECT id, name, imageUrl, isHidden, createdAt FROM stickers ORDER BY id DESC LIMIT 120').all()
+    .map(s => ({ ...s, isHidden: Boolean(s.isHidden) }));
+  res.json(stickers);
+});
+
+router.post('/stickers', auth, devOnly, upload.single('sticker'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Загрузи картинку стикера' });
+    const name = String(req.body.name || 'sticker').trim().slice(0, 40) || 'sticker';
+    const imageUrl = await saveUploadedFile(req.file, 'yved/stickers');
+    const r = db.prepare('INSERT INTO stickers (name, imageUrl) VALUES (?, ?)').run(name, imageUrl);
+    res.json({ ok: true, id: r.lastInsertRowid, name, imageUrl });
+  } catch (e) { next(e); }
+});
+
+router.put('/stickers/:id/hide', auth, devOnly, (req, res) => {
+  db.prepare('UPDATE stickers SET isHidden = 1 WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+router.put('/stickers/:id/restore', auth, devOnly, (req, res) => {
+  db.prepare('UPDATE stickers SET isHidden = 0 WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+router.delete('/stickers/:id', auth, devOnly, (req, res) => {
+  db.prepare('DELETE FROM stickers WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 router.get('/backup', auth, devOnly, (req, res) => {
   const backup = {
     exportedAt: new Date().toISOString(),
@@ -146,6 +179,7 @@ router.get('/backup', auth, devOnly, (req, res) => {
     profile_likes: db.prepare('SELECT * FROM profile_likes').all(),
     activity_events: db.prepare('SELECT * FROM activity_events').all(),
     user_badges: db.prepare('SELECT * FROM user_badges').all(),
+    stickers: db.prepare('SELECT * FROM stickers').all(),
     site_config: db.prepare('SELECT * FROM site_config').all()
   };
   res.json(backup);

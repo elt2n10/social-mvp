@@ -12,6 +12,9 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
   const [error, setError] = useState('');
   const [badgeFiles, setBadgeFiles] = useState({});
   const [badgeTitles, setBadgeTitles] = useState({});
+  const [stickers, setStickers] = useState([]);
+  const [stickerName, setStickerName] = useState('');
+  const [stickerFile, setStickerFile] = useState(null);
 
   async function load() {
     try {
@@ -20,6 +23,7 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
       setUsers(await api('/api/dev/users'));
       setPosts(await api('/api/dev/recent/posts'));
       setVideos(await api('/api/dev/recent/videos'));
+      setStickers(await api('/api/dev/stickers'));
       const cfg = await api('/api/dev/config');
       setSite(cfg); onConfig?.(cfg);
     } catch (e) { setError(e.message); }
@@ -62,6 +66,17 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
     setBadgeTitles(prev => ({ ...prev, [userId]: '' }));
   }
 
+
+  async function uploadSticker() {
+    if (!stickerFile) throw new Error('Выбери картинку стикера');
+    const fd = new FormData();
+    fd.append('name', stickerName || 'sticker');
+    fd.append('sticker', stickerFile);
+    await api('/api/dev/stickers', { method: 'POST', body: fd });
+    setStickerName('');
+    setStickerFile(null);
+  }
+
   return <div className="modalBackdrop">
     <div className="modal big devPanel">
       <div className="row between"><h2>Панель разработчика Yved</h2><button onClick={onClose}>Закрыть</button></div>
@@ -73,6 +88,7 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
         <div><b>{stats?.hiddenPosts ?? 0}</b><span>скрытых постов</span></div>
         <div><b>{stats?.hiddenVideos ?? 0}</b><span>скрытых видео</span></div>
         <div><b>{stats?.reports ?? 0}</b><span>жалоб</span></div>
+        <div><b>{stats?.stickers ?? 0}</b><span>стикеров</span></div>
       </div>
 
       <form className="card settingsGroup" onSubmit={saveConfig}>
@@ -98,6 +114,26 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
         <h3>Сохранение контента</h3>
         <p>Скачай резервную копию перед крупными обновлениями. Для постоянного хранения фото/видео можно подключить Cloudinary через переменные Render.</p>
         <button onClick={() => action(downloadBackup)}>Скачать backup JSON</button>
+      </div>
+
+      <div className="card settingsGroup">
+        <h3>Настоящие стикеры для ЛС</h3>
+        <p>Загружай картинки-стикеры. Они появятся в панели “Стикеры” в личных сообщениях.</p>
+        <div className="row responsiveRow">
+          <input placeholder="Название стикера" value={stickerName} onChange={e=>setStickerName(e.target.value)} />
+          <label className="fileButton inlineFile">Картинка<input type="file" accept="image/*" onChange={e=>setStickerFile(e.target.files?.[0] || null)} /></label>
+          <button type="button" onClick={()=>action(uploadSticker)}>Добавить</button>
+        </div>
+        <div className="stickerAdminGrid">
+          {stickers.map(st => <div className={st.isHidden ? 'stickerAdminItem hidden' : 'stickerAdminItem'} key={st.id}>
+            <img src={fileUrl(st.imageUrl)} alt={st.name} />
+            <b>{st.name}</b>
+            <div className="row">
+              <button className="ghost" onClick={()=>action(()=>api(`/api/dev/stickers/${st.id}/${st.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{st.isHidden ? 'Вернуть' : 'Скрыть'}</button>
+              <button className="danger" onClick={()=>{ if(confirm('Удалить стикер?')) action(()=>api(`/api/dev/stickers/${st.id}`, { method:'DELETE' })); }}>Удалить</button>
+            </div>
+          </div>)}
+        </div>
       </div>
 
       <h3>Пользователи, аватарки и обложки</h3>

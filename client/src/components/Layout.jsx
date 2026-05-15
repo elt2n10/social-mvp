@@ -49,18 +49,23 @@ export default function Layout({ page, setPage, user, children, config, onlineCo
     <main className="content pageFade centeredContent">{children}</main>
 
     <aside className="rightRail desktopInfoRail">
-      <div className="card compactCard">
-        <b>Yved</b>
-        <small>Мини-панель сайта</small>
-      </div>
-      <div className="card compactCard">
+      <div className="card compactCard onlineCard">
         <b>Сейчас онлайн</b>
         <small>{onlineCount || 0} пользователей</small>
       </div>
-      <div className="card compactCard">
-        <b>Быстрые действия</b>
-        <button className="ghost" onClick={openMyProfile}>Мой профиль</button>
-        <button className="ghost" onClick={() => setPage('messages')}>Сообщения</button>
+      <div className="card compactCard sideProfileCard">
+        <b>Твой профиль</b>
+        <button className="cleanButton sideProfileMini" onClick={openMyProfile}>
+          {user?.avatar ? <img className="avatarImage small" src={fileUrl(user.avatar)} /> : <span className="avatar small">{user?.username?.[0]?.toUpperCase()}</span>}
+          <span className="nameStack">
+            <b>{user?.displayName || user?.username}</b>
+            <small>{makeHandle(user?.username)}</small>
+          </span>
+        </button>
+      </div>
+      <div className="card compactCard tipsCard">
+        <b>Подсказка</b>
+        <small>Активность теперь отдельной вкладкой. Новые лайки, подписки и комментарии ищи там.</small>
       </div>
     </aside>
 
