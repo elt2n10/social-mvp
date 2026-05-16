@@ -4,11 +4,20 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const db = require('../database');
 const { auth } = require('../middleware/auth');
-const { isDevEmail, maskEmail, createCode, hashSecret, compareSecret, createCaptchaQuestion } = require('../utils/security');
+const {
+  isDevEmail,
+  maskEmail,
+  createCode,
+  hashSecret,
+  compareSecret,
+  createCaptchaQuestion,
+  normalizeCaptcha
+} = require('../utils/security');
 const { sendVerificationEmail } = require('../utils/email');
 
 const router = express.Router();
 const EMAIL_CODE_LIFETIME_MIN = 15;
+const EMAIL_RESEND_COOLDOWN_MS = 60_000;
 
 function publicUser(user) {
   return {
@@ -30,6 +39,19 @@ function signToken(user) {
   return jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '180d' });
 }
 
+function normalizeEmail(email) {
+  return String(email || '').trim().toLowerCase();
+}
+
+function normalizeUsername(username) {
+  return String(username || '').trim();
+}
+
+function canSendEmailCode(user) {
+  if (!user.lastEmailCodeAt) return true;
+  return Date.now() - new Date(user.lastEmailCodeAt).getTime() >= EMAIL_RESEND_COOLDOWN_MS;
+}
+
 async function createAndSendEmailCode(user) {
   const code = createCode(6);
   const hash = await hashSecret(code);
@@ -41,35 +63,63 @@ async function createAndSendEmailCode(user) {
     WHERE id = ?
   `).run(hash, expires, new Date().toISOString(), user.id);
 
-  const mail = await sendVerificationEmail(user.email, code);
-  const debugCode = process.env.EMAIL_DEBUG_CODE === 'true' ? code : undefined;
-
-  return {
-    sent: Boolean(mail.sent),
-    debugCode,
-    mailError: mail.sent ? '' : (mail.reason || mail.code || 'SMTP error')
-  };
+  try {
+    const mail = await sendVerificationEmail(user.email, code);
+    return {
+      sent: Boolean(mail.sent),
+      debugCode: mail.debugCode,
+      mailError: mail.sent ? '' : (mail.reason || '')
+    };
+  } catch (err) {
+    console.error('[YVED EMAIL SEND ERROR]', err.message);
+    return {
+      sent: false,
+      debugCode: process.env.EMAIL_DEBUG_CODE === 'true' ? code : undefined,
+      mailError: err.message || 'Не удалось отправить письмо'
+    };
+  }
 }
 
 async function verifyCaptcha(captchaId, captchaAnswer) {
-  const row = db.prepare('SELECT * FROM captcha_challenges WHERE id = ?').get(String(captchaId || ''));
+  const id = String(captchaId || '');
+  const answer = normalizeCaptcha(captchaAnswer);
+
+  const row = db.prepare('SELECT * FROM captcha_challenges WHERE id = ?').get(id);
   if (!row || row.used) return false;
   if (new Date(row.expiresAt).getTime() < Date.now()) return false;
-  const ok = await compareSecret(String(captchaAnswer || '').trim(), row.answerHash);
+
+  const ok = await compareSecret(answer, row.answerHash);
   if (ok) db.prepare('UPDATE captcha_challenges SET used = 1 WHERE id = ?').run(row.id);
   return ok;
+}
+
+function verificationPayload(user, mailInfo, extraMessage = '') {
+  return {
+    requiresEmailVerification: true,
+    email: user.email,
+    maskedEmail: maskEmail(user.email),
+    mailSent: Boolean(mailInfo?.sent),
+    debugCode: mailInfo?.debugCode,
+    mailError: mailInfo?.mailError || '',
+    message: extraMessage || 'Аккаунт создан. Подтверди почту.'
+  };
 }
 
 router.get('/captcha', async (req, res, next) => {
   try {
     db.prepare('DELETE FROM captcha_challenges WHERE expiresAt < ? OR used = 1').run(new Date(Date.now() - 60_000).toISOString());
+
     const { question, answer } = createCaptchaQuestion();
     const id = crypto.randomUUID();
     const hash = await hashSecret(answer);
     const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+
     db.prepare('INSERT INTO captcha_challenges (id, answerHash, expiresAt) VALUES (?, ?, ?)').run(id, hash, expiresAt);
+
     res.json({ captchaId: id, question });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.post('/check-invite', (req, res) => {
@@ -81,82 +131,134 @@ router.post('/check-invite', (req, res) => {
 
 router.post('/register', async (req, res, next) => {
   try {
-    const { username, email, password, captchaId, captchaAnswer } = req.body;
+    const username = normalizeUsername(req.body.username);
+    const email = normalizeEmail(req.body.email);
+    const password = String(req.body.password || '');
+    const captchaId = req.body.captchaId;
+    const captchaAnswer = req.body.captchaAnswer || req.body.captcha || req.body.code || req.body.captchaCode;
+
     if (!username || !email || !password) return res.status(400).json({ message: 'Заполни все поля' });
-    if (!(await verifyCaptcha(captchaId, captchaAnswer))) return res.status(400).json({ message: 'Капча решена неверно' });
+    if (!(await verifyCaptcha(captchaId, captchaAnswer))) return res.status(400).json({ message: 'Капча решена неверно или устарела' });
     if (!/^[a-zA-Z0-9_а-яА-ЯёЁ.-]{3,24}$/.test(username)) return res.status(400).json({ message: 'Username 3-24 символа, без странных знаков' });
     if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ message: 'Некорректный email' });
     if (password.length < 6) return res.status(400).json({ message: 'Пароль минимум 6 символов' });
-    const exists = db.prepare('SELECT id FROM users WHERE username = ? OR email = ?').get(username, email.toLowerCase());
-    if (exists) return res.status(409).json({ message: 'Такой username или email уже есть' });
+
+    const usernameUser = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    const emailUser = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+
+    if (usernameUser && usernameUser.email !== email) {
+      return res.status(409).json({ message: 'Такой username уже есть' });
+    }
+
+    if (emailUser) {
+      if (emailUser.isEmailVerified) {
+        return res.status(409).json({ message: 'Пользователь с таким email уже есть' });
+      }
+
+      let mailInfo = { sent: false, mailError: '' };
+      if (canSendEmailCode(emailUser)) {
+        mailInfo = await createAndSendEmailCode(emailUser);
+      } else {
+        mailInfo.mailError = 'Код уже был отправлен. Новый код можно запросить через минуту.';
+      }
+
+      return res.status(200).json(verificationPayload(
+        emailUser,
+        mailInfo,
+        'Аккаунт уже создан, но почта ещё не подтверждена. Введи код подтверждения.'
+      ));
+    }
 
     const passwordHash = await bcrypt.hash(password, 12);
     const result = db.prepare(`
       INSERT INTO users (username, email, passwordHash, isEmailVerified)
       VALUES (?, ?, ?, 0)
-    `).run(username.trim(), email.trim().toLowerCase(), passwordHash);
+    `).run(username, email, passwordHash);
+
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
     const mailInfo = await createAndSendEmailCode(user);
 
-    res.json({
-      requiresEmailVerification: true,
-      email: user.email,
-      maskedEmail: maskEmail(user.email),
-      mailSent: mailInfo.sent,
-      debugCode: mailInfo.debugCode,
-      mailError: mailInfo.sent ? undefined : mailInfo.mailError
-    });
-  } catch (e) { next(e); }
+    res.json(verificationPayload(user, mailInfo));
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.post('/verify-email', async (req, res, next) => {
   try {
-    const { email, code } = req.body;
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email || '').trim().toLowerCase());
+    const email = normalizeEmail(req.body.email);
+    const code = String(req.body.code || '').trim();
+
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
     if (!user) return res.status(404).json({ message: 'Аккаунт не найден' });
     if (user.isEmailVerified) return res.json({ token: signToken(user), user: publicUser(user) });
-    if (!user.emailVerifyCodeHash || !user.emailVerifyExpiresAt) return res.status(400).json({ message: 'Код не создан' });
+    if (!user.emailVerifyCodeHash || !user.emailVerifyExpiresAt) return res.status(400).json({ message: 'Код не создан. Запроси новый код.' });
     if (new Date(user.emailVerifyExpiresAt).getTime() < Date.now()) return res.status(400).json({ message: 'Код истёк. Запроси новый.' });
-    const ok = await compareSecret(String(code || '').trim(), user.emailVerifyCodeHash);
+
+    const ok = await compareSecret(code, user.emailVerifyCodeHash);
     if (!ok) return res.status(400).json({ message: 'Неверный код подтверждения' });
+
     db.prepare(`
-      UPDATE users SET isEmailVerified = 1, emailVerifyCodeHash = '', emailVerifyExpiresAt = '' WHERE id = ?
+      UPDATE users
+      SET isEmailVerified = 1,
+          emailVerifyCodeHash = '',
+          emailVerifyExpiresAt = '',
+          lastEmailCodeAt = ''
+      WHERE id = ?
     `).run(user.id);
+
     const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
     res.json({ token: signToken(fresh), user: publicUser(fresh) });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.post('/resend-verification', async (req, res, next) => {
   try {
-    const { email } = req.body;
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(String(email || '').trim().toLowerCase());
+    const email = normalizeEmail(req.body.email);
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+
     if (!user) return res.status(404).json({ message: 'Аккаунт не найден' });
     if (user.isEmailVerified) return res.json({ ok: true, alreadyVerified: true });
-    if (user.lastEmailCodeAt && Date.now() - new Date(user.lastEmailCodeAt).getTime() < 60_000) {
+
+    if (!canSendEmailCode(user)) {
       return res.status(429).json({ message: 'Новый код можно запросить через минуту' });
     }
+
     const mailInfo = await createAndSendEmailCode(user);
     res.json({
       ok: true,
       maskedEmail: maskEmail(user.email),
-      mailSent: mailInfo.sent,
+      mailSent: Boolean(mailInfo.sent),
       debugCode: mailInfo.debugCode,
-      mailError: mailInfo.sent ? undefined : mailInfo.mailError
+      mailError: mailInfo.mailError || ''
     });
-  } catch (e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 });
 
 router.post('/login', async (req, res) => {
-  const { login, password } = req.body;
-  const user = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(login, String(login || '').trim().toLowerCase());
+  const login = String(req.body.login || '').trim();
+  const password = String(req.body.password || '');
+
+  const user = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(login, login.toLowerCase());
   if (!user) return res.status(401).json({ message: 'Неверный логин или пароль' });
+
   const ok = await bcrypt.compare(password, user.passwordHash);
   if (!ok) return res.status(401).json({ message: 'Неверный логин или пароль' });
   if (user.isBlocked) return res.status(403).json({ message: 'Аккаунт заблокирован' });
+
   if (!user.isEmailVerified) {
-    return res.status(403).json({ message: 'Сначала подтверди почту', needsEmailVerification: true, email: user.email, maskedEmail: maskEmail(user.email) });
+    return res.status(403).json({
+      message: 'Сначала подтверди почту',
+      needsEmailVerification: true,
+      email: user.email,
+      maskedEmail: maskEmail(user.email)
+    });
   }
+
   res.json({ token: signToken(user), user: publicUser(user) });
 });
 

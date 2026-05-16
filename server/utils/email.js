@@ -2,117 +2,100 @@ let nodemailer = null;
 try {
   nodemailer = require('nodemailer');
 } catch (err) {
-  console.warn('[YVED SMTP] nodemailer не установлен:', err.message);
+  nodemailer = null;
 }
 
-function boolEnv(value, defaultValue = false) {
-  if (value === undefined || value === null || value === '') return defaultValue;
-  return ['true', '1', 'yes', 'y'].includes(String(value).trim().toLowerCase());
-}
-
-function clean(value) {
-  return String(value || '').trim();
+function boolEnv(value) {
+  return String(value || '').trim().toLowerCase() === 'true';
 }
 
 function cleanPassword(value) {
-  // Google App Password часто копируется с пробелами: "abcd efgh ijkl mnop".
-  // Для SMTP лучше отправлять его без пробелов.
-  return String(value || '').replace(/\s+/g, '').trim();
+  return String(value || '').replace(/\s/g, '');
 }
 
 function hasSmtp() {
   return Boolean(
     nodemailer &&
-    clean(process.env.SMTP_HOST) &&
-    clean(process.env.SMTP_USER) &&
-    cleanPassword(process.env.SMTP_PASS)
+    process.env.SMTP_HOST &&
+    process.env.SMTP_USER &&
+    process.env.SMTP_PASS
   );
 }
 
-function getSmtpConfig() {
-  const port = Number(process.env.SMTP_PORT || 587);
-  const secure = process.env.SMTP_SECURE !== undefined
-    ? boolEnv(process.env.SMTP_SECURE)
-    : port === 465;
+function createTransporter() {
+  if (!hasSmtp()) {
+    throw new Error('SMTP не настроен: проверь SMTP_HOST, SMTP_USER, SMTP_PASS');
+  }
 
-  return {
-    host: clean(process.env.SMTP_HOST),
-    port,
-    secure,
+  return nodemailer.createTransport({
+    host: String(process.env.SMTP_HOST).trim(),
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: boolEnv(process.env.SMTP_SECURE),
     auth: {
-      user: clean(process.env.SMTP_USER),
+      user: String(process.env.SMTP_USER).trim(),
       pass: cleanPassword(process.env.SMTP_PASS)
     },
-    // Чтобы Render не висел слишком долго, если Gmail/SMTP не отвечает.
-    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT || 20000),
-    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT || 20000),
-    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT || 30000),
-    tls: {
-      // Не отключаем проверку сертификатов. Это безопаснее.
-      rejectUnauthorized: true
-    }
-  };
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000
+  });
+}
+
+function buildMailHtml(code) {
+  return `
+    <div style="margin:0;padding:0;background:#090a10;font-family:Arial,sans-serif;color:#f2f3ff;">
+      <div style="max-width:520px;margin:0 auto;padding:28px;">
+        <div style="background:#11131d;border:1px solid #25293d;border-radius:22px;padding:26px;">
+          <h1 style="margin:0 0 12px;font-size:28px;color:#8b5cf6;">Yved</h1>
+          <p style="margin:0 0 18px;color:#c8cbda;font-size:15px;line-height:1.5;">
+            Код подтверждения почты:
+          </p>
+          <div style="font-size:34px;letter-spacing:8px;font-weight:800;color:#ffffff;background:#191b2a;border-radius:16px;padding:18px 20px;text-align:center;border:1px solid #313650;">
+            ${code}
+          </div>
+          <p style="margin:18px 0 0;color:#8e94ad;font-size:13px;line-height:1.5;">
+            Код действует 15 минут. Если ты не регистрировался в Yved, просто игнорируй это письмо.
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 async function sendVerificationEmail(email, code) {
+  const to = String(email || '').trim().toLowerCase();
   const subject = 'Код подтверждения Yved';
-  const text = `Твой код подтверждения Yved: ${code}\n\nЕсли ты не регистрировался в Yved, просто игнорируй это письмо.`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;background:#0b0b12;color:#fff;padding:24px;border-radius:16px;max-width:520px">
-      <h2 style="margin:0 0 12px;color:#a78bfa">Yved</h2>
-      <p style="font-size:16px;line-height:1.5">Твой код подтверждения:</p>
-      <div style="font-size:32px;font-weight:800;letter-spacing:6px;background:#171728;border:1px solid #2d2a44;border-radius:14px;padding:16px;text-align:center;color:#c4b5fd">
-        ${code}
-      </div>
-      <p style="font-size:13px;color:#aaa;margin-top:18px">Если ты не регистрировался в Yved, просто игнорируй это письмо.</p>
-    </div>
-  `;
+  const text = `Код подтверждения Yved: ${code}\n\nКод действует 15 минут. Если ты не регистрировался, просто игнорируй письмо.`;
+
+  if (boolEnv(process.env.EMAIL_DEBUG_CODE)) {
+    console.log(`[YVED DEBUG EMAIL CODE] ${to}: ${code}`);
+    return { sent: false, debug: true, debugCode: code, reason: 'EMAIL_DEBUG_CODE=true' };
+  }
 
   if (!hasSmtp()) {
-    console.log(`[YVED EMAIL CODE] ${email}: ${code}`);
-    return { sent: false, reason: 'SMTP не настроен или nodemailer не установлен' };
+    console.log(`[YVED EMAIL CODE - SMTP NOT CONFIGURED] ${to}: ${code}`);
+    return { sent: false, debug: false, reason: 'SMTP не настроен' };
   }
 
-  const config = getSmtpConfig();
+  const transporter = createTransporter();
 
-  console.log('[YVED SMTP] Отправка кода:', {
-    host: config.host,
-    port: config.port,
-    secure: config.secure,
-    user: config.auth.user,
-    to: email
+  await transporter.verify();
+
+  const info = await transporter.sendMail({
+    from: process.env.MAIL_FROM || `Yved <${process.env.SMTP_USER}>`,
+    to,
+    subject,
+    text,
+    html: buildMailHtml(code)
   });
 
-  const transporter = nodemailer.createTransport(config);
-
-  try {
-    // Проверяем соединение отдельно, чтобы в Render Logs была понятная ошибка.
-    await transporter.verify();
-
-    const info = await transporter.sendMail({
-      from: process.env.MAIL_FROM || `Yved <${config.auth.user}>`,
-      to: email,
-      subject,
-      text,
-      html
-    });
-
-    console.log('[YVED SMTP] Код отправлен:', info.messageId || 'ok');
-    return { sent: true, messageId: info.messageId };
-  } catch (err) {
-    console.error('[YVED SMTP ERROR]', {
-      code: err.code,
-      command: err.command,
-      response: err.response,
-      message: err.message
-    });
-
-    return {
-      sent: false,
-      reason: err.message || 'SMTP error',
-      code: err.code || ''
-    };
-  }
+  return {
+    sent: true,
+    messageId: info.messageId || ''
+  };
 }
 
-module.exports = { sendVerificationEmail, hasSmtp, getSmtpConfig };
+module.exports = {
+  sendVerificationEmail,
+  hasSmtp
+};

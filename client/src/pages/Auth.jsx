@@ -9,6 +9,14 @@ export default function Auth({ onAuth, config }) {
   const [verifyCode, setVerifyCode] = useState('');
   const [verifyHint, setVerifyHint] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  function buildVerifyHint(data) {
+    if (data?.debugCode) return `Тестовый код: ${data.debugCode}`;
+    if (data?.mailSent) return `Код отправлен на ${data.maskedEmail || 'почту'}`;
+    if (data?.mailError) return `Код создан, но письмо не отправилось: ${data.mailError}`;
+    return data?.message || `Проверь почту: ${data?.maskedEmail || ''}`;
+  }
 
   async function loadCaptcha() {
     try {
@@ -27,12 +35,13 @@ export default function Auth({ onAuth, config }) {
   async function submit(e) {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
     try {
       if (mode === 'verify') {
         const data = await api('/api/auth/verify-email', {
           method: 'POST',
-          body: JSON.stringify({ email: verifyEmail, code: verifyCode })
+          body: JSON.stringify({ email: verifyEmail.trim().toLowerCase(), code: verifyCode.trim() })
         });
         setToken(data.token);
         onAuth(data.user);
@@ -42,16 +51,22 @@ export default function Auth({ onAuth, config }) {
       const path = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
       const body = mode === 'register'
         ? {
-            ...form,
+            username: form.username.trim(),
+            email: form.email.trim().toLowerCase(),
+            password: form.password,
             captchaId: captcha?.captchaId,
             captchaAnswer: String(form.captchaAnswer || '').trim()
           }
-        : form;
+        : {
+            login: form.login.trim(),
+            password: form.password
+          };
+
       const data = await api(path, { method:'POST', body: JSON.stringify(body) });
 
       if (data.requiresEmailVerification) {
-        setVerifyEmail(data.email);
-        setVerifyHint(data.debugCode ? `Тестовый код: ${data.debugCode}` : `Код отправлен на ${data.maskedEmail || 'почту'}`);
+        setVerifyEmail(data.email || form.email.trim().toLowerCase());
+        setVerifyHint(buildVerifyHint(data));
         setMode('verify');
         return;
       }
@@ -63,22 +78,33 @@ export default function Auth({ onAuth, config }) {
         setVerifyEmail(err.data.email);
         setVerifyHint(`Сначала подтверди почту: ${err.data.maskedEmail || ''}`);
         setMode('verify');
+      } else if (err.data?.requiresEmailVerification) {
+        setVerifyEmail(err.data.email || form.email.trim().toLowerCase());
+        setVerifyHint(buildVerifyHint(err.data));
+        setMode('verify');
       } else {
         setError(err.message);
       }
       if (mode === 'register') loadCaptcha();
+    } finally {
+      setLoading(false);
     }
   }
 
   async function resendCode() {
     setError('');
+    setLoading(true);
     try {
       const data = await api('/api/auth/resend-verification', {
         method: 'POST',
-        body: JSON.stringify({ email: verifyEmail })
+        body: JSON.stringify({ email: verifyEmail.trim().toLowerCase() })
       });
-      setVerifyHint(data.debugCode ? `Новый тестовый код: ${data.debugCode}` : `Новый код отправлен на ${data.maskedEmail || 'почту'}`);
-    } catch (err) { setError(err.message); }
+      setVerifyHint(buildVerifyHint(data));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return <div className="authPage">
@@ -92,7 +118,7 @@ export default function Auth({ onAuth, config }) {
       {mode === 'register' && <>
         <input placeholder="Username" value={form.username} onChange={e=>setForm({...form, username:e.target.value})}/>
         <input placeholder="Email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})}/>
-        <small className="authHint">После регистрации нужно подтвердить почту. Если SMTP ещё не настроен, тестовый код появится прямо здесь.</small>
+        <small className="authHint">После регистрации нужно подтвердить почту. Код должен прийти письмом, а при EMAIL_DEBUG_CODE=true будет показан здесь.</small>
         <input type="password" placeholder="Пароль" value={form.password} onChange={e=>setForm({...form, password:e.target.value})}/>
         <div className="captchaBox">
           <span>Проверка: <b>{captcha?.question || '...'}</b></span>
@@ -108,11 +134,11 @@ export default function Auth({ onAuth, config }) {
 
       {mode === 'verify' && <>
         <input placeholder="Email" value={verifyEmail} onChange={e=>setVerifyEmail(e.target.value)}/>
-        <input placeholder="Код из письма" value={verifyCode} onChange={e=>setVerifyCode(e.target.value)}/>
+        <input placeholder="6-значный код из письма" inputMode="numeric" maxLength="6" value={verifyCode} onChange={e=>setVerifyCode(e.target.value)}/>
       </>}
 
-      <button>{mode === 'login' ? 'Войти' : mode === 'register' ? 'Зарегистрироваться' : 'Подтвердить'}</button>
-      {mode === 'verify' && <button type="button" className="ghost" onClick={resendCode}>Отправить код ещё раз</button>}
+      <button disabled={loading}>{loading ? 'Подожди...' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Зарегистрироваться' : 'Подтвердить'}</button>
+      {mode === 'verify' && <button type="button" className="ghost" disabled={loading} onClick={resendCode}>Отправить код ещё раз</button>}
       <button type="button" className="ghost" onClick={()=>{ setMode(mode === 'login' ? 'register' : 'login'); setError(''); setVerifyHint(''); }}>
         {mode === 'login' ? 'Создать аккаунт' : 'Уже есть аккаунт'}
       </button>

@@ -31,14 +31,26 @@ async function compareSecret(value, hash) {
   return bcrypt.compare(String(value), hash);
 }
 
-function createCaptchaQuestion() {
-  const a = crypto.randomInt(2, 10);
-  const b = crypto.randomInt(2, 10);
-  const ops = ['+', '-'];
-  const op = ops[crypto.randomInt(0, ops.length)];
-  const answer = op === '+' ? a + b : Math.max(a, b) - Math.min(a, b);
-  const question = op === '+' ? `${a} + ${b}` : `${Math.max(a, b)} - ${Math.min(a, b)}`;
-  return { question, answer: String(answer) };
+function normalizeCaptcha(value) {
+  return String(value || '').trim().replace(/\s+/g, '').toUpperCase();
 }
 
-module.exports = { isDevEmail, maskEmail, createCode, hashSecret, compareSecret, createCaptchaQuestion };
+function createCaptchaQuestion() {
+  // Без похожих символов: O/0/I/1 специально убраны.
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 5; i++) {
+    code += chars[crypto.randomInt(0, chars.length)];
+  }
+  return { question: code, answer: normalizeCaptcha(code) };
+}
+
+module.exports = {
+  isDevEmail,
+  maskEmail,
+  createCode,
+  hashSecret,
+  compareSecret,
+  createCaptchaQuestion,
+  normalizeCaptcha
+};
