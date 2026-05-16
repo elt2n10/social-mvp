@@ -5,12 +5,27 @@ try {
   nodemailer = null;
 }
 
+let Resend = null;
+try {
+  Resend = require('resend').Resend;
+} catch (err) {
+  Resend = null;
+}
+
 function boolEnv(value) {
   return String(value || '').trim().toLowerCase() === 'true';
 }
 
 function cleanPassword(value) {
   return String(value || '').replace(/\s/g, '');
+}
+
+function getEmailProvider() {
+  return String(process.env.EMAIL_PROVIDER || '').trim().toLowerCase();
+}
+
+function hasResend() {
+  return Boolean(Resend && process.env.RESEND_API_KEY);
 }
 
 function hasSmtp() {
@@ -46,7 +61,7 @@ function buildMailHtml(code) {
     <div style="margin:0;padding:0;background:#090a10;font-family:Arial,sans-serif;color:#f2f3ff;">
       <div style="max-width:520px;margin:0 auto;padding:28px;">
         <div style="background:#11131d;border:1px solid #25293d;border-radius:22px;padding:26px;">
-          <h1 style="margin:0 0 12px;font-size:28px;color:#8b5cf6;">Yved</h1>
+          <h1 style="margin:0 0 12px;font-size:30px;color:#8b5cf6;">Yved</h1>
           <p style="margin:0 0 18px;color:#c8cbda;font-size:15px;line-height:1.5;">
             Код подтверждения почты:
           </p>
@@ -62,23 +77,41 @@ function buildMailHtml(code) {
   `;
 }
 
-async function sendVerificationEmail(email, code) {
-  const to = String(email || '').trim().toLowerCase();
-  const subject = 'Код подтверждения Yved';
-  const text = `Код подтверждения Yved: ${code}\n\nКод действует 15 минут. Если ты не регистрировался, просто игнорируй письмо.`;
-
-  if (boolEnv(process.env.EMAIL_DEBUG_CODE)) {
-    console.log(`[YVED DEBUG EMAIL CODE] ${to}: ${code}`);
-    return { sent: false, debug: true, debugCode: code, reason: 'EMAIL_DEBUG_CODE=true' };
+async function sendWithResend(to, subject, text, html) {
+  if (!hasResend()) {
+    throw new Error('Resend не настроен: проверь RESEND_API_KEY и установку пакета resend');
   }
 
+  const resend = new Resend(String(process.env.RESEND_API_KEY).trim());
+
+  const from = process.env.RESEND_FROM || 'Yved <onboarding@resend.dev>';
+
+  const result = await resend.emails.send({
+    from,
+    to,
+    subject,
+    text,
+    html
+  });
+
+  if (result.error) {
+    const message = result.error.message || JSON.stringify(result.error);
+    throw new Error(`Resend: ${message}`);
+  }
+
+  return {
+    sent: true,
+    provider: 'resend',
+    messageId: result.data?.id || ''
+  };
+}
+
+async function sendWithSmtp(to, subject, text, html) {
   if (!hasSmtp()) {
-    console.log(`[YVED EMAIL CODE - SMTP NOT CONFIGURED] ${to}: ${code}`);
-    return { sent: false, debug: false, reason: 'SMTP не настроен' };
+    throw new Error('SMTP не настроен: проверь SMTP_HOST, SMTP_USER, SMTP_PASS');
   }
 
   const transporter = createTransporter();
-
   await transporter.verify();
 
   const info = await transporter.sendMail({
@@ -86,16 +119,41 @@ async function sendVerificationEmail(email, code) {
     to,
     subject,
     text,
-    html: buildMailHtml(code)
+    html
   });
 
   return {
     sent: true,
+    provider: 'smtp',
     messageId: info.messageId || ''
   };
 }
 
+async function sendVerificationEmail(email, code) {
+  const to = String(email || '').trim().toLowerCase();
+  const subject = 'Код подтверждения Yved';
+  const text = `Код подтверждения Yved: ${code}\n\nКод действует 15 минут. Если ты не регистрировался, просто игнорируй письмо.`;
+  const html = buildMailHtml(code);
+
+  if (boolEnv(process.env.EMAIL_DEBUG_CODE)) {
+    console.log(`[YVED DEBUG EMAIL CODE] ${to}: ${code}`);
+    return { sent: false, debug: true, debugCode: code, reason: 'EMAIL_DEBUG_CODE=true' };
+  }
+
+  try {
+    if (getEmailProvider() === 'resend') {
+      return await sendWithResend(to, subject, text, html);
+    }
+
+    return await sendWithSmtp(to, subject, text, html);
+  } catch (err) {
+    console.error('[YVED EMAIL SEND ERROR]', err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   sendVerificationEmail,
-  hasSmtp
+  hasSmtp,
+  hasResend
 };
