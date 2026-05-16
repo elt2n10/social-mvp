@@ -34,14 +34,21 @@ async function createAndSendEmailCode(user) {
   const code = createCode(6);
   const hash = await hashSecret(code);
   const expires = new Date(Date.now() + EMAIL_CODE_LIFETIME_MIN * 60_000).toISOString();
+
   db.prepare(`
     UPDATE users
     SET emailVerifyCodeHash = ?, emailVerifyExpiresAt = ?, lastEmailCodeAt = ?
     WHERE id = ?
   `).run(hash, expires, new Date().toISOString(), user.id);
+
   const mail = await sendVerificationEmail(user.email, code);
   const debugCode = process.env.EMAIL_DEBUG_CODE === 'true' ? code : undefined;
-  return { sent: mail.sent, debugCode };
+
+  return {
+    sent: Boolean(mail.sent),
+    debugCode,
+    mailError: mail.sent ? '' : (mail.reason || mail.code || 'SMTP error')
+  };
 }
 
 async function verifyCaptcha(captchaId, captchaAnswer) {
@@ -96,7 +103,8 @@ router.post('/register', async (req, res, next) => {
       email: user.email,
       maskedEmail: maskEmail(user.email),
       mailSent: mailInfo.sent,
-      debugCode: mailInfo.debugCode
+      debugCode: mailInfo.debugCode,
+      mailError: mailInfo.sent ? undefined : mailInfo.mailError
     });
   } catch (e) { next(e); }
 });
@@ -129,7 +137,13 @@ router.post('/resend-verification', async (req, res, next) => {
       return res.status(429).json({ message: 'Новый код можно запросить через минуту' });
     }
     const mailInfo = await createAndSendEmailCode(user);
-    res.json({ ok: true, maskedEmail: maskEmail(user.email), mailSent: mailInfo.sent, debugCode: mailInfo.debugCode });
+    res.json({
+      ok: true,
+      maskedEmail: maskEmail(user.email),
+      mailSent: mailInfo.sent,
+      debugCode: mailInfo.debugCode,
+      mailError: mailInfo.sent ? undefined : mailInfo.mailError
+    });
   } catch (e) { next(e); }
 });
 
