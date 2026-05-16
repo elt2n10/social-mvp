@@ -126,9 +126,18 @@ export default function Videos({ openProfile }) {
           <button className="roundAction ghost" onClick={toggleSound}>{soundOn ? '🔊' : '🔇'}</button>
         </div>
         {openComments === v.id && <div className="comments videoComments tiktokComments open">
-          <b className="commentsTitle">Комментарии</b>
-          {v.comments.slice(-8).map(c => <p className="safeText" key={c.id}><b className="clickable" onClick={()=>openProfile?.(c.authorId)}>{c.authorName}:</b> {c.text}</p>)}
-          <div className="row commentRow"><input placeholder="Коммент" value={comment[v.id] || ''} onChange={e=>setComment({...comment,[v.id]:e.target.value})}/><button onClick={()=>addComment(v.id)}>OK</button></div>
+          <div className="videoCommentsHandle" />
+          <div className="row between commentsTop">
+            <b className="commentsTitle">Комментарии · {v.comments?.length || 0}</b>
+            <button type="button" className="ghost miniBtn" onClick={()=>setOpenComments(null)}>×</button>
+          </div>
+          <div className="videoCommentsList">
+            {v.comments?.length ? v.comments.slice(-30).map(c => <div className="videoCommentItem" key={c.id}>
+              <b className="clickable" onClick={()=>openProfile?.(c.authorId)}>{c.authorName}</b>
+              <p className="safeText">{c.text}</p>
+            </div>) : <p className="mutedText">Пока комментариев нет</p>}
+          </div>
+          <div className="row commentRow videoCommentInput"><input placeholder="Добавить комментарий" value={comment[v.id] || ''} onChange={e=>setComment({...comment,[v.id]:e.target.value})}/><button onClick={()=>addComment(v.id)}>➤</button></div>
         </div>}
       </div>)}
       {hasMore && <button className="ghost loadMore videoLoad" onClick={()=>load(false)}>Ещё видео</button>}

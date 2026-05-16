@@ -193,6 +193,7 @@ router.put('/config', auth, devOnly, upload.fields([{ name: 'logo', maxCount: 1 
   try {
     const allowedKeys = [
       'siteName', 'accentColor', 'secondColor', 'backgroundColor', 'cardColor',
+      'textColor', 'mutedColor', 'borderColor', 'sidebarColor', 'inputColor', 'dangerColor',
       'buttonRadius', 'soundsEnabled', 'animationsEnabled', 'inviteEnabled', 'stickers'
     ];
     const update = db.prepare('INSERT INTO site_config (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');

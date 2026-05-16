@@ -41,7 +41,11 @@ export default function Auth({ onAuth, config }) {
 
       const path = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
       const body = mode === 'register'
-        ? { ...form, captchaId: captcha?.captchaId }
+        ? {
+            ...form,
+            captchaId: captcha?.captchaId,
+            captchaAnswer: String(form.captchaAnswer || '').trim()
+          }
         : form;
       const data = await api(path, { method:'POST', body: JSON.stringify(body) });
 
@@ -88,9 +92,10 @@ export default function Auth({ onAuth, config }) {
       {mode === 'register' && <>
         <input placeholder="Username" value={form.username} onChange={e=>setForm({...form, username:e.target.value})}/>
         <input placeholder="Email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})}/>
+        <small className="authHint">После регистрации нужно подтвердить почту. Если SMTP ещё не настроен, тестовый код появится прямо здесь.</small>
         <input type="password" placeholder="Пароль" value={form.password} onChange={e=>setForm({...form, password:e.target.value})}/>
         <div className="captchaBox">
-          <span>Проверка: {captcha?.question || '...'}</span>
+          <span>Проверка: <b>{captcha?.question || '...'}</b></span>
           <button type="button" className="ghost miniBtn" onClick={loadCaptcha}>↻</button>
         </div>
         <input placeholder="Ответ на капчу" value={form.captchaAnswer} onChange={e=>setForm({...form, captchaAnswer:e.target.value})}/>

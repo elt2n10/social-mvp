@@ -37,7 +37,7 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
   async function saveConfig(e) {
     e.preventDefault();
     const fd = new FormData();
-    ['siteName','accentColor','secondColor','backgroundColor','cardColor','buttonRadius','soundsEnabled','animationsEnabled','inviteEnabled','stickers'].forEach(k => fd.append(k, site[k] ?? ''));
+    ['siteName','accentColor','secondColor','backgroundColor','cardColor','textColor','mutedColor','borderColor','sidebarColor','inputColor','dangerColor','buttonRadius','soundsEnabled','animationsEnabled','inviteEnabled','stickers'].forEach(k => fd.append(k, site[k] ?? ''));
     if (logo) fd.append('logo', logo);
     if (favicon) fd.append('favicon', favicon);
     const updated = await api('/api/dev/config', { method:'PUT', body: fd });
@@ -67,6 +67,23 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
   }
 
 
+  function resetSiteColors() {
+    setSite(s => ({
+      ...s,
+      accentColor: '#7c3cff',
+      secondColor: '#2aa7ff',
+      backgroundColor: '#090a10',
+      cardColor: '#11131d',
+      textColor: '#f2f3ff',
+      mutedColor: '#8e94ad',
+      borderColor: '#25293d',
+      sidebarColor: '#0d0f18',
+      inputColor: '#11131d',
+      dangerColor: '#d83d5a',
+      buttonRadius: '14'
+    }));
+  }
+
   async function uploadSticker() {
     if (!stickerFile) throw new Error('Выбери картинку стикера');
     const fd = new FormData();
@@ -94,13 +111,21 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
       <form className="card settingsGroup" onSubmit={saveConfig}>
         <h3>Изменить сайт без нового кода</h3>
         <input value={site.siteName || ''} onChange={e=>setField('siteName', e.target.value)} placeholder="Название сайта" />
-        <div className="colorGrid">
+        <p className="safeText">Эти цвета применяются для всех пользователей, у кого в настройках стоит режим “по умолчанию”.</p>
+        <div className="colorGrid wideColorGrid">
           <label>Акцент<input type="color" value={site.accentColor || '#7c3cff'} onChange={e=>setField('accentColor', e.target.value)} /></label>
           <label>Второй цвет<input type="color" value={site.secondColor || '#2aa7ff'} onChange={e=>setField('secondColor', e.target.value)} /></label>
           <label>Фон<input type="color" value={site.backgroundColor || '#090a10'} onChange={e=>setField('backgroundColor', e.target.value)} /></label>
           <label>Карточки<input type="color" value={site.cardColor || '#11131d'} onChange={e=>setField('cardColor', e.target.value)} /></label>
+          <label>Левое меню<input type="color" value={site.sidebarColor || '#0d0f18'} onChange={e=>setField('sidebarColor', e.target.value)} /></label>
+          <label>Поля ввода<input type="color" value={site.inputColor || '#11131d'} onChange={e=>setField('inputColor', e.target.value)} /></label>
+          <label>Основной текст<input type="color" value={site.textColor || '#f2f3ff'} onChange={e=>setField('textColor', e.target.value)} /></label>
+          <label>Вторичный текст<input type="color" value={site.mutedColor || '#8e94ad'} onChange={e=>setField('mutedColor', e.target.value)} /></label>
+          <label>Обводки<input type="color" value={site.borderColor || '#25293d'} onChange={e=>setField('borderColor', e.target.value)} /></label>
+          <label>Опасные кнопки<input type="color" value={site.dangerColor || '#d83d5a'} onChange={e=>setField('dangerColor', e.target.value)} /></label>
         </div>
         <label>Скругление кнопок<input type="range" min="4" max="28" value={Number(site.buttonRadius || 14)} onChange={e=>setField('buttonRadius', e.target.value)} /></label>
+        <button type="button" className="ghost" onClick={resetSiteColors}>Вернуть цвета по умолчанию</button>
         <label>Лого сайта<input type="file" accept="image/*" onChange={e=>setLogo(e.target.files[0])} /></label>
         <label>Иконка вкладки<input type="file" accept="image/*" onChange={e=>setFavicon(e.target.files[0])} /></label>
         <label className="checkLine"><input type="checkbox" checked={site.soundsEnabled === true || site.soundsEnabled === 'true'} onChange={e=>setField('soundsEnabled', e.target.checked)} /> Звуки</label>

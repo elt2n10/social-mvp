@@ -18,6 +18,12 @@ const defaultConfig = {
   secondColor: '#2aa7ff',
   backgroundColor: '#090a10',
   cardColor: '#11131d',
+  textColor: '#f2f3ff',
+  mutedColor: '#8e94ad',
+  borderColor: '#25293d',
+  sidebarColor: '#0d0f18',
+  inputColor: '#11131d',
+  dangerColor: '#d83d5a',
   buttonRadius: '14',
   soundsEnabled: true,
   animationsEnabled: true,
@@ -30,6 +36,12 @@ function applyConfig(config) {
   root.style.setProperty('--accent2', config.secondColor || defaultConfig.secondColor);
   root.style.setProperty('--bg', config.backgroundColor || defaultConfig.backgroundColor);
   root.style.setProperty('--card', config.cardColor || defaultConfig.cardColor);
+  root.style.setProperty('--text', config.textColor || defaultConfig.textColor);
+  root.style.setProperty('--muted', config.mutedColor || defaultConfig.mutedColor);
+  root.style.setProperty('--border', config.borderColor || defaultConfig.borderColor);
+  root.style.setProperty('--sidebar', config.sidebarColor || defaultConfig.sidebarColor);
+  root.style.setProperty('--input', config.inputColor || defaultConfig.inputColor);
+  root.style.setProperty('--danger', config.dangerColor || defaultConfig.dangerColor);
   root.style.setProperty('--radius', `${config.buttonRadius || 14}px`);
   document.body.classList.toggle('noAnimations', !config.animationsEnabled);
   const favicon = document.querySelector("link[rel='icon']") || document.createElement('link');

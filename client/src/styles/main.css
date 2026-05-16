@@ -150,3 +150,51 @@ body.videoMode .tiktokCard{height:calc(100vh - 46px);max-height:820px;scroll-sna
 .bottomNav button{position:relative}.sidebar nav button{position:relative}
 @media(min-width:1100px){body.videoMode .centeredContent{overflow:hidden!important}.videoFeed.tiktokFeed{width:min(500px,100%)!important}.tiktokCard{width:min(470px,100%)!important;height:min(820px,calc(100vh - 48px))!important;margin:0 auto}.tiktokComments.open{left:12px;right:90px;bottom:10px!important;max-height:220px;overflow:auto}}
 @media(max-width:760px){body.videoMode .content.centeredContent{width:100vw!important;max-width:100vw!important;overflow:hidden!important;padding-left:6px!important;padding-right:6px!important}.videoPage.tiktokVideoPage{width:100%!important}.videoFeed.tiktokFeed{width:100%!important;height:calc(100dvh - 86px)!important;overflow-y:auto!important;overflow-x:hidden!important}.tiktokCard{width:100%!important;height:calc(100dvh - 104px)!important;max-height:none!important;border-radius:22px!important;margin:0 auto}.tiktokOverlay{left:14px!important;right:72px!important;bottom:92px!important}.tiktokActions{right:10px!important;bottom:116px!important}.tiktokComments.open{left:8px!important;right:8px!important;bottom:8px!important;max-height:42vh;overflow:auto}.roundAction{width:54px!important;height:54px!important;padding:5px!important}}
+
+/* ===== Yved comments / fullscreen phone video / richer colors ===== */
+:root{
+  --sidebar:#0d0f18;
+  --input:#11131d;
+  --danger:#d83d5a;
+}
+body{color:var(--text)!important;background:var(--bg)!important}.sidebar{background:var(--sidebar)!important}.card,.authCard{background:var(--card)!important;border-color:var(--border)!important}input,textarea{background:var(--input)!important;color:var(--text)!important;border-color:var(--border)!important}small,.mutedText{color:var(--muted)!important}button.danger{background:var(--danger)!important}.bottomNav{background:rgba(9,10,16,.92);backdrop-filter:blur(16px)}
+.wideColorGrid{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))!important}.wideColorGrid input[type=color]{width:100%;height:44px;padding:4px}.authHint{margin-top:-4px;text-align:left}
+
+/* Comments should feel like a short-video bottom sheet, without copying TikTok exactly */
+.tiktokComments.open{
+  display:flex!important;
+  flex-direction:column;
+  gap:10px;
+  position:absolute;
+  left:12px!important;
+  right:12px!important;
+  bottom:10px!important;
+  max-height:min(48vh,420px);
+  padding:12px;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:24px;
+  background:linear-gradient(180deg,rgba(20,22,35,.94),rgba(8,9,15,.96));
+  backdrop-filter:blur(18px);
+  box-shadow:0 -16px 50px rgba(0,0,0,.45);
+  overflow:hidden;
+}
+.videoCommentsHandle{width:46px;height:5px;border-radius:999px;background:rgba(255,255,255,.22);margin:0 auto}.commentsTop{gap:10px}.commentsTop .miniBtn{width:34px;height:34px;padding:0;border-radius:50%}.videoCommentsList{display:grid;gap:10px;overflow:auto;padding-right:4px;min-height:80px}.videoCommentItem{display:grid;gap:3px;padding:8px 10px;border-radius:14px;background:rgba(255,255,255,.055)}.videoCommentItem p{margin:0}.videoCommentInput{padding-top:2px}.videoCommentInput input{border-radius:18px}.videoCommentInput button{width:44px;height:44px;padding:0;border-radius:50%;flex:0 0 44px}
+
+/* Phone: video fills available app window until the bottom tab bar, but never leaves the tab */
+@media(max-width:760px){
+  body.videoMode{overflow:hidden!important;position:fixed;width:100%;height:100dvh}
+  body.videoMode .appShell{height:100dvh;overflow:hidden}
+  body.videoMode .content.centeredContent{height:calc(100dvh - 66px)!important;width:100vw!important;max-width:100vw!important;padding:0 0 66px!important;overflow:hidden!important}
+  body.videoMode .videoPage.tiktokVideoPage{height:100%!important;width:100%!important;display:block!important;overflow:hidden!important}
+  body.videoMode .videoFeed.tiktokFeed{height:100%!important;width:100%!important;padding:0!important;margin:0!important;overflow-y:auto!important;overflow-x:hidden!important;scroll-snap-type:y mandatory;overscroll-behavior:contain}
+  body.videoMode .tiktokCard{width:100vw!important;height:calc(100dvh - 66px)!important;max-height:none!important;border-radius:0!important;margin:0!important;border:0!important;scroll-snap-align:start;box-shadow:none!important}
+  .tiktokOverlay{left:14px!important;right:74px!important;bottom:86px!important}.tiktokActions{right:10px!important;bottom:110px!important}.tiktokComments.open{left:0!important;right:0!important;bottom:0!important;max-height:54vh;border-radius:24px 24px 0 0!important;border-left:0!important;border-right:0!important;border-bottom:0!important}.videoCommentsList{max-height:34vh}
+}
+
+/* Desktop: video block slightly lower and calmer */
+@media(min-width:1100px){
+  body.videoMode .content.centeredContent{padding-top:34px!important}
+  body.videoMode .videoFeed.tiktokFeed{height:calc(100vh - 78px)!important;align-content:start!important;padding-top:18px!important}
+  body.videoMode .tiktokCard{height:min(780px,calc(100vh - 96px))!important}
+  .tiktokComments.open{max-height:380px!important}
+}
