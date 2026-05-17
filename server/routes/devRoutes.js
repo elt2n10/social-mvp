@@ -224,7 +224,7 @@ router.get('/moderation/logs', auth, devOnly, (req, res) => {
   const rows = db.prepare(`
     SELECT ml.*, u.username authorName, u.displayName authorDisplayName
     FROM moderation_logs ml
-    LEFT JOIN users u ON u.id = ml.authorId
+    LEFT JOIN users u ON u.id = ml.senderId
     ORDER BY ml.id DESC LIMIT 120
   `).all();
   res.json(rows);
