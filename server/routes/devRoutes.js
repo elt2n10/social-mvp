@@ -33,19 +33,20 @@ router.get('/stats', auth, devOnly, (req, res) => {
     videos: db.prepare('SELECT COUNT(*) count FROM videos WHERE isHidden = 0').get().count,
     hiddenVideos: db.prepare('SELECT COUNT(*) count FROM videos WHERE isHidden = 1').get().count,
     reports: db.prepare('SELECT COUNT(*) count FROM reports').get().count,
-    stickers: db.prepare('SELECT COUNT(*) count FROM stickers WHERE isHidden = 0').get().count
+    stickers: db.prepare('SELECT COUNT(*) count FROM stickers WHERE isHidden = 0').get().count,
+    moderation: db.prepare('SELECT COUNT(*) count FROM moderation_logs').get().count
   });
 });
 
 router.get('/users', auth, devOnly, (req, res) => {
-  const users = db.prepare('SELECT id, username, email, avatar, coverUrl, description, isBlocked, isEmailVerified, createdAt FROM users ORDER BY id DESC LIMIT 200').all()
+  const users = db.prepare('SELECT id, username, displayName, email, avatar, coverUrl, description, isBlocked, isEmailVerified, createdAt FROM users ORDER BY id DESC LIMIT 200').all()
     .map(u => ({ ...u, email: u.email, isBlocked: Boolean(u.isBlocked), isEmailVerified: Boolean(u.isEmailVerified), isDev: isDevEmail(u.email) }));
   res.json(users);
 });
 
 router.get('/recent/posts', auth, devOnly, (req, res) => {
   const rows = db.prepare(`
-    SELECT p.id, p.text, p.imageUrl, p.isHidden, p.createdAt, u.username authorName,
+    SELECT p.id, p.text, p.imageUrl, p.isHidden, p.createdAt, u.username authorName, u.displayName authorDisplayName,
       COALESCE((SELECT json_group_array(imageUrl) FROM (SELECT pi.imageUrl FROM post_images pi WHERE pi.postId = p.id ORDER BY pi.position ASC)), '[]') imageUrls
     FROM posts p JOIN users u ON u.id = p.authorId
     ORDER BY p.id DESC LIMIT 40
@@ -55,7 +56,7 @@ router.get('/recent/posts', auth, devOnly, (req, res) => {
 
 router.get('/recent/videos', auth, devOnly, (req, res) => {
   const rows = db.prepare(`
-    SELECT v.id, v.description, v.videoUrl, v.isHidden, v.createdAt, u.username authorName
+    SELECT v.id, v.description, v.videoUrl, v.isHidden, v.createdAt, u.username authorName, u.displayName authorDisplayName
     FROM videos v JOIN users u ON u.id = v.authorId
     ORDER BY v.id DESC LIMIT 40
   `).all().map(v => ({ ...v, isHidden: Boolean(v.isHidden) }));
@@ -166,10 +167,27 @@ router.delete('/stickers/:id', auth, devOnly, (req, res) => {
   res.json({ ok: true });
 });
 
+
+router.get('/moderation/logs', auth, devOnly, (req, res) => {
+  const rows = db.prepare(`
+    SELECT ml.*, u.username, u.displayName, u.email
+    FROM moderation_logs ml
+    LEFT JOIN users u ON u.id = ml.userId
+    ORDER BY ml.id DESC
+    LIMIT 200
+  `).all();
+  res.json(rows);
+});
+
+router.delete('/moderation/logs/:id', auth, devOnly, (req, res) => {
+  db.prepare('DELETE FROM moderation_logs WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
 router.get('/backup', auth, devOnly, (req, res) => {
   const backup = {
     exportedAt: new Date().toISOString(),
-    users: db.prepare('SELECT id, username, email, avatar, description, coverUrl, profileColor, isBlocked, createdAt FROM users').all(),
+    users: db.prepare('SELECT id, username, displayName, email, avatar, description, coverUrl, profileColor, isBlocked, createdAt FROM users').all(),
     posts: db.prepare('SELECT * FROM posts').all(),
     post_images: db.prepare('SELECT * FROM post_images').all(),
     comments: db.prepare('SELECT * FROM comments').all(),
@@ -180,6 +198,7 @@ router.get('/backup', auth, devOnly, (req, res) => {
     activity_events: db.prepare('SELECT * FROM activity_events').all(),
     user_badges: db.prepare('SELECT * FROM user_badges').all(),
     stickers: db.prepare('SELECT * FROM stickers').all(),
+    moderation_logs: db.prepare('SELECT * FROM moderation_logs').all(),
     site_config: db.prepare('SELECT * FROM site_config').all()
   };
   res.json(backup);

@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../database');
 const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const { checkText } = require('../utils_moderation');
+const { checkText, rejectByModeration } = require('../utils_moderation');
 const { saveUploadedFile } = require('../utils/storage');
 const { createActivity } = require('../utils/activity');
 const router = express.Router();
@@ -16,10 +16,10 @@ router.get('/', auth, (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 12, 1), 30);
   const offset = Math.max(Number(req.query.offset) || 0, 0);
   const videos = db.prepare(`
-    SELECT v.*, u.username authorName, u.avatar authorAvatar,
+    SELECT v.*, u.username authorName, u.displayName authorDisplayName, u.avatar authorAvatar,
       (SELECT COUNT(*) FROM video_likes l WHERE l.videoId = v.id) likes,
       EXISTS(SELECT 1 FROM video_likes l WHERE l.videoId = v.id AND l.userId = ?) likedByMe,
-      COALESCE((SELECT json_group_array(json_object('id', c.id, 'text', c.text, 'createdAt', c.createdAt, 'authorName', cu.username, 'authorId', cu.id))
+      COALESCE((SELECT json_group_array(json_object('id', c.id, 'text', c.text, 'createdAt', c.createdAt, 'authorName', cu.username, 'authorDisplayName', cu.displayName, 'authorId', cu.id))
         FROM video_comments c JOIN users cu ON cu.id = c.authorId WHERE c.videoId = v.id ORDER BY c.id ASC), '[]') comments
     FROM videos v JOIN users u ON u.id = v.authorId
     WHERE v.isHidden = 0
@@ -41,7 +41,7 @@ router.post('/', auth, notBlocked, upload.single('video'), async (req, res, next
 
     const description = req.body.description || '';
     const moderation = checkText(description);
-    if (!moderation.ok) return res.status(400).json({ message: 'Видео не опубликовано: ' + moderation.reason });
+    if (!moderation.ok) return rejectByModeration(res, db, { userId: req.user.id, targetType: 'video', text: description, reason: moderation.reason, matched: moderation.matched, publicMessage: 'Видео не опубликовано' });
     const videoUrl = await saveUploadedFile(req.file, 'yved/videos');
     const r = db.prepare('INSERT INTO videos (authorId, videoUrl, description, moderationStatus) VALUES (?, ?, ?, ?)').run(req.user.id, videoUrl, description.slice(0, 600), 'approved');
     res.json({ id: r.lastInsertRowid });
@@ -68,7 +68,7 @@ router.post('/:id/comments', auth, notBlocked, (req, res) => {
   const text = (req.body.text || '').trim();
   if (!text) return res.status(400).json({ message: 'Комментарий пустой' });
   const moderation = checkText(text);
-  if (!moderation.ok) return res.status(400).json({ message: 'Комментарий не отправлен: ' + moderation.reason });
+  if (!moderation.ok) return rejectByModeration(res, db, { userId: req.user.id, targetType: 'video_comment', targetId: videoId, text, reason: moderation.reason, matched: moderation.matched, publicMessage: 'Комментарий не отправлен' });
   db.prepare('INSERT INTO video_comments (videoId, authorId, text) VALUES (?, ?, ?)').run(videoId, req.user.id, text.slice(0, 1000));
   createActivity({ userId: video.authorId, actorId: req.user.id, type: 'video_comment', targetType: 'video', targetId: videoId, text: 'прокомментировал ваше видео' });
   res.json({ ok: true });
@@ -76,10 +76,10 @@ router.post('/:id/comments', auth, notBlocked, (req, res) => {
 
 router.get('/user/:id', auth, (req, res) => {
   const videos = db.prepare(`
-    SELECT v.*, u.username authorName, u.avatar authorAvatar,
+    SELECT v.*, u.username authorName, u.displayName authorDisplayName, u.avatar authorAvatar,
       (SELECT COUNT(*) FROM video_likes l WHERE l.videoId = v.id) likes,
       EXISTS(SELECT 1 FROM video_likes l WHERE l.videoId = v.id AND l.userId = ?) likedByMe,
-      COALESCE((SELECT json_group_array(json_object('id', c.id, 'text', c.text, 'createdAt', c.createdAt, 'authorName', cu.username, 'authorId', cu.id))
+      COALESCE((SELECT json_group_array(json_object('id', c.id, 'text', c.text, 'createdAt', c.createdAt, 'authorName', cu.username, 'authorDisplayName', cu.displayName, 'authorId', cu.id))
         FROM video_comments c JOIN users cu ON cu.id = c.authorId WHERE c.videoId = v.id), '[]') comments
     FROM videos v JOIN users u ON u.id = v.authorId
     WHERE v.authorId = ? AND v.isHidden = 0 ORDER BY v.id DESC LIMIT 40

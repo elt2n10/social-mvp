@@ -3,7 +3,6 @@ const db = require('../database');
 const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 const { saveUploadedFile } = require('../utils/storage');
-const { checkText } = require('../utils_moderation');
 const { createActivity } = require('../utils/activity');
 const router = express.Router();
 
@@ -14,7 +13,7 @@ function ensureGroupMember(groupId, userId) {
 router.get('/users/search', auth, (req, res) => {
   const q = `%${req.query.q || ''}%`;
   const users = db.prepare(`
-    SELECT id, username, avatar, description FROM users
+    SELECT id, username, displayName, avatar, description FROM users
     WHERE id != ? AND (username LIKE ? OR email LIKE ?)
     ORDER BY username LIMIT 20
   `).all(req.user.id, q, q);
@@ -23,7 +22,7 @@ router.get('/users/search', auth, (req, res) => {
 
 router.get('/dialogs', auth, (req, res) => {
   const privateRows = db.prepare(`
-    SELECT 'user' type, u.id, u.username name, u.username, u.avatar, '' color,
+    SELECT 'user' type, u.id, COALESCE(NULLIF(u.displayName, ''), u.username) name, u.username, u.displayName, u.avatar, '' color,
       (SELECT text FROM messages m WHERE (m.fromUserId = u.id AND m.toUserId = ?) OR (m.fromUserId = ? AND m.toUserId = u.id) ORDER BY m.id DESC LIMIT 1) lastMessage,
       (SELECT createdAt FROM messages m WHERE (m.fromUserId = u.id AND m.toUserId = ?) OR (m.fromUserId = ? AND m.toUserId = u.id) ORDER BY m.id DESC LIMIT 1) lastAt
     FROM users u
@@ -72,9 +71,6 @@ router.post('/groups', auth, notBlocked, async (req, res) => {
   const color = String(req.body.color || '#7c3cff').trim().slice(0, 24);
   const memberIds = Array.isArray(req.body.memberIds) ? req.body.memberIds.map(Number).filter(Boolean) : [];
   if (!name) return res.status(400).json({ message: 'Название группы обязательно' });
-  const moderation = checkText(name);
-  if (!moderation.ok) return res.status(400).json({ message: 'Название группы не прошло проверку: ' + moderation.reason });
-
   const tx = db.transaction(() => {
     const r = db.prepare('INSERT INTO message_groups (ownerId, name, color) VALUES (?, ?, ?)').run(req.user.id, name, color);
     const groupId = r.lastInsertRowid;
@@ -138,7 +134,7 @@ router.get('/with/:userId', auth, (req, res) => {
   const params = beforeId ? [req.user.id, other, other, req.user.id, beforeId, limit] : [req.user.id, other, other, req.user.id, limit];
   const whereBefore = beforeId ? 'AND id < ?' : '';
   const rows = db.prepare(`
-    SELECT messages.*, users.username authorName, users.avatar authorAvatar FROM messages
+    SELECT messages.*, users.username authorName, users.displayName authorDisplayName, users.avatar authorAvatar FROM messages
     LEFT JOIN users ON users.id = messages.fromUserId
     WHERE ((fromUserId = ? AND toUserId = ?) OR (fromUserId = ? AND toUserId = ?)) ${whereBefore}
     ORDER BY messages.id DESC LIMIT ?
@@ -155,7 +151,7 @@ router.get('/groups/:groupId/messages', auth, (req, res) => {
   const params = beforeId ? [groupId, beforeId, limit] : [groupId, limit];
   const whereBefore = beforeId ? 'AND gm.id < ?' : '';
   const rows = db.prepare(`
-    SELECT gm.*, u.username authorName, u.avatar authorAvatar
+    SELECT gm.*, u.username authorName, u.displayName authorDisplayName, u.avatar authorAvatar
     FROM message_group_messages gm
     LEFT JOIN users u ON u.id = gm.fromUserId
     WHERE gm.groupId = ? ${whereBefore}
@@ -182,8 +178,6 @@ router.post('/send', auth, notBlocked, (req, res) => {
 
   const clean = String(text || '').trim();
   if (!clean) return res.status(400).json({ message: 'Пустое сообщение' });
-  const moderation = checkText(clean);
-  if (!moderation.ok) return res.status(400).json({ message: 'Сообщение не отправлено: ' + moderation.reason });
   const r = db.prepare(`
     INSERT INTO messages (fromUserId, toUserId, text, messageType, stickerUrl)
     VALUES (?, ?, ?, 'text', '')
@@ -211,8 +205,6 @@ router.post('/groups/:groupId/send', auth, notBlocked, (req, res) => {
 
   const clean = String(text || '').trim();
   if (!clean) return res.status(400).json({ message: 'Пустое сообщение' });
-  const moderation = checkText(clean);
-  if (!moderation.ok) return res.status(400).json({ message: 'Сообщение не отправлено: ' + moderation.reason });
   const r = db.prepare(`
     INSERT INTO message_group_messages (groupId, fromUserId, text, messageType, stickerUrl)
     VALUES (?, ?, ?, 'text', '')

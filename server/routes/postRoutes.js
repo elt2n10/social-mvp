@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../database');
 const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const { checkText } = require('../utils_moderation');
+const { checkText, rejectByModeration } = require('../utils_moderation');
 const { saveUploadedFile } = require('../utils/storage');
 const { createActivity } = require('../utils/activity');
 const router = express.Router();
@@ -33,11 +33,11 @@ function mapPost(row) {
 }
 
 const selectPostSql = `
-  SELECT p.*, u.username authorName, u.avatar authorAvatar,
+  SELECT p.*, u.username authorName, u.displayName authorDisplayName, u.avatar authorAvatar,
     (SELECT COUNT(*) FROM post_likes l WHERE l.postId = p.id) likes,
     EXISTS(SELECT 1 FROM post_likes l WHERE l.postId = p.id AND l.userId = ?) likedByMe,
     COALESCE((SELECT json_group_array(imageUrl) FROM (SELECT pi.imageUrl FROM post_images pi WHERE pi.postId = p.id ORDER BY pi.position ASC)), '[]') imageUrls,
-    COALESCE((SELECT json_group_array(json_object('id', c.id, 'text', c.text, 'createdAt', c.createdAt, 'authorName', cu.username, 'authorId', cu.id))
+    COALESCE((SELECT json_group_array(json_object('id', c.id, 'text', c.text, 'createdAt', c.createdAt, 'authorName', cu.username, 'authorDisplayName', cu.displayName, 'authorId', cu.id))
       FROM comments c JOIN users cu ON cu.id = c.authorId WHERE c.postId = p.id ORDER BY c.id ASC), '[]') comments
   FROM posts p JOIN users u ON u.id = p.authorId
 `;
@@ -58,7 +58,7 @@ router.post('/', auth, notBlocked, upload.any(), async (req, res, next) => {
   try {
     const text = String(req.body.text || '').slice(0, MAX_POST_TEXT);
     const moderation = checkText(text);
-    if (!moderation.ok) return res.status(400).json({ message: 'Пост не опубликован: ' + moderation.reason });
+    if (!moderation.ok) return rejectByModeration(res, db, { userId: req.user.id, targetType: 'post', text, reason: moderation.reason, matched: moderation.matched, publicMessage: 'Пост не опубликован' });
 
     const imageFiles = (Array.isArray(req.files) ? req.files : [])
       .filter(file => file.mimetype && file.mimetype.startsWith('image/'))
@@ -102,7 +102,7 @@ router.post('/:id/comments', auth, notBlocked, (req, res) => {
   const text = (req.body.text || '').trim();
   if (!text) return res.status(400).json({ message: 'Комментарий пустой' });
   const moderation = checkText(text);
-  if (!moderation.ok) return res.status(400).json({ message: 'Комментарий не отправлен: ' + moderation.reason });
+  if (!moderation.ok) return rejectByModeration(res, db, { userId: req.user.id, targetType: 'post_comment', targetId: postId, text, reason: moderation.reason, matched: moderation.matched, publicMessage: 'Комментарий не отправлен' });
   db.prepare('INSERT INTO comments (postId, authorId, text) VALUES (?, ?, ?)').run(postId, req.user.id, text.slice(0, 1000));
   createActivity({ userId: post.authorId, actorId: req.user.id, type: 'post_comment', targetType: 'post', targetId: postId, text: 'прокомментировал ваш пост' });
   res.json({ ok: true });

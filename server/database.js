@@ -8,6 +8,7 @@ db.exec(`
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   username TEXT NOT NULL UNIQUE,
+  displayName TEXT DEFAULT '',
   email TEXT NOT NULL UNIQUE,
   passwordHash TEXT NOT NULL,
   avatar TEXT DEFAULT '',
@@ -208,6 +209,20 @@ CREATE TABLE IF NOT EXISTS captcha_challenges (
   createdAt TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
+
+CREATE TABLE IF NOT EXISTS moderation_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  userId INTEGER,
+  targetType TEXT DEFAULT '',
+  targetId INTEGER,
+  action TEXT DEFAULT 'block',
+  reason TEXT DEFAULT '',
+  matched TEXT DEFAULT '',
+  textPreview TEXT DEFAULT '',
+  createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY(userId) REFERENCES users(id) ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS online_status (
   userId INTEGER PRIMARY KEY,
   lastSeen TEXT NOT NULL,
@@ -225,6 +240,7 @@ function addColumnIfMissing(table, column, sql) {
 }
 
 // Безопасные миграции: добавляют поля, но не удаляют старые данные.
+addColumnIfMissing('users', 'displayName', "displayName TEXT DEFAULT ''");
 addColumnIfMissing('users', 'coverUrl', "coverUrl TEXT DEFAULT ''");
 addColumnIfMissing('users', 'profileColor', "profileColor TEXT DEFAULT ''");
 addColumnIfMissing('users', 'isEmailVerified', 'isEmailVerified INTEGER DEFAULT 1');
@@ -267,6 +283,7 @@ for (const [key, value] of Object.entries(defaultConfig)) insertConfig.run(key, 
 // Индексы ускоряют ленту, профили, сообщения, dev-панель и онлайн.
 db.exec(`
 CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
+CREATE INDEX IF NOT EXISTS idx_users_display_name ON users(displayName);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(createdAt);
 CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(authorId);
@@ -287,7 +304,10 @@ CREATE INDEX IF NOT EXISTS idx_activity_user_created ON activity_events(userId, 
 CREATE INDEX IF NOT EXISTS idx_activity_read ON activity_events(userId, isRead);
 CREATE INDEX IF NOT EXISTS idx_user_badges_user ON user_badges(userId);
 CREATE INDEX IF NOT EXISTS idx_stickers_hidden ON stickers(isHidden, createdAt);
+CREATE INDEX IF NOT EXISTS idx_moderation_logs_created ON moderation_logs(createdAt);
 
 `);
+
+db.prepare("UPDATE users SET displayName = username WHERE displayName IS NULL OR displayName = ''").run();
 
 module.exports = db;

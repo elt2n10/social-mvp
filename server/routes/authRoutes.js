@@ -23,6 +23,8 @@ function publicUser(user) {
   return {
     id: user.id,
     username: user.username,
+    displayName: user.displayName || user.username,
+    handle: '@' + String(user.username || '').replace(/^@+/, ''),
     maskedEmail: maskEmail(user.email),
     avatar: user.avatar,
     description: user.description,
@@ -44,7 +46,12 @@ function normalizeEmail(email) {
 }
 
 function normalizeUsername(username) {
-  return String(username || '').trim();
+  return String(username || '').trim().replace(/^@+/, '').toLowerCase();
+}
+
+function normalizeDisplayName(name, username) {
+  const value = String(name || '').trim();
+  return value || username;
 }
 
 function canSendEmailCode(user) {
@@ -132,14 +139,16 @@ router.post('/check-invite', (req, res) => {
 router.post('/register', async (req, res, next) => {
   try {
     const username = normalizeUsername(req.body.username);
+    const displayName = normalizeDisplayName(req.body.displayName || req.body.name, username);
     const email = normalizeEmail(req.body.email);
     const password = String(req.body.password || '');
     const captchaId = req.body.captchaId;
     const captchaAnswer = req.body.captchaAnswer || req.body.captcha || req.body.code || req.body.captchaCode;
 
-    if (!username || !email || !password) return res.status(400).json({ message: 'Заполни все поля' });
+    if (!displayName || !username || !email || !password) return res.status(400).json({ message: 'Заполни имя, @username, email и пароль' });
     if (!(await verifyCaptcha(captchaId, captchaAnswer))) return res.status(400).json({ message: 'Капча решена неверно или устарела' });
-    if (!/^[a-zA-Z0-9_а-яА-ЯёЁ.-]{3,24}$/.test(username)) return res.status(400).json({ message: 'Username 3-24 символа, без странных знаков' });
+    if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) return res.status(400).json({ message: '@username: 3-24 символа, только латиница, цифры и _' });
+    if (displayName.length < 2 || displayName.length > 40) return res.status(400).json({ message: 'Имя должно быть от 2 до 40 символов' });
     if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ message: 'Некорректный email' });
     if (password.length < 6) return res.status(400).json({ message: 'Пароль минимум 6 символов' });
 
@@ -171,9 +180,9 @@ router.post('/register', async (req, res, next) => {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const result = db.prepare(`
-      INSERT INTO users (username, email, passwordHash, isEmailVerified)
-      VALUES (?, ?, ?, 0)
-    `).run(username, email, passwordHash);
+      INSERT INTO users (username, displayName, email, passwordHash, isEmailVerified)
+      VALUES (?, ?, ?, ?, 0)
+    `).run(username, displayName, email, passwordHash);
 
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
     const mailInfo = await createAndSendEmailCode(user);
@@ -243,11 +252,19 @@ router.post('/login', async (req, res) => {
   const login = String(req.body.login || '').trim();
   const password = String(req.body.password || '');
 
-  const user = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(login, login.toLowerCase());
-  if (!user) return res.status(401).json({ message: 'Неверный логин или пароль' });
+  if (!login || !password) {
+    return res.status(400).json({ message: 'Введи email/@username и пароль' });
+  }
+
+  const normalizedLogin = login.toLowerCase();
+  const user = normalizedLogin.includes('@') && !normalizedLogin.startsWith('@')
+    ? db.prepare('SELECT * FROM users WHERE lower(email) = ?').get(normalizedLogin)
+    : db.prepare('SELECT * FROM users WHERE username = ?').get(normalizeUsername(login));
+
+  if (!user) return res.status(401).json({ message: 'Неверный email/@username или пароль' });
 
   const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.status(401).json({ message: 'Неверный логин или пароль' });
+  if (!ok) return res.status(401).json({ message: 'Неверный email/@username или пароль' });
   if (user.isBlocked) return res.status(403).json({ message: 'Аккаунт заблокирован' });
 
   if (!user.isEmailVerified) {

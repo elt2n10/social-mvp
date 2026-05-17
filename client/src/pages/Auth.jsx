@@ -3,7 +3,7 @@ import { api, setToken } from '../api/api';
 
 export default function Auth({ onAuth, config }) {
   const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({ username:'', email:'', login:'', password:'', captchaAnswer:'' });
+  const [form, setForm] = useState({ displayName:'', username:'', email:'', login:'', password:'', captchaAnswer:'' });
   const [captcha, setCaptcha] = useState(null);
   const [verifyEmail, setVerifyEmail] = useState('');
   const [verifyCode, setVerifyCode] = useState('');
@@ -51,7 +51,8 @@ export default function Auth({ onAuth, config }) {
       const path = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
       const body = mode === 'register'
         ? {
-            username: form.username.trim(),
+            displayName: form.displayName.trim(),
+            username: form.username.trim().replace(/^@+/, '').toLowerCase(),
             email: form.email.trim().toLowerCase(),
             password: form.password,
             captchaId: captcha?.captchaId,
@@ -111,14 +112,15 @@ export default function Auth({ onAuth, config }) {
     <form className="authCard pop" onSubmit={submit}>
       <div className="authLogoText">{config?.siteName || 'Yved'}</div>
       <h1>{mode === 'login' ? 'Вход' : mode === 'register' ? 'Регистрация' : 'Подтверждение почты'}</h1>
-      <p>Соцсеть с постами, видео и сообщениями</p>
+      <p>Вход можно выполнить по email или @username. Имя и @username — разные поля.</p>
       {error && <div className="error">{error}</div>}
       {verifyHint && mode === 'verify' && <div className="successBox">{verifyHint}</div>}
 
       {mode === 'register' && <>
-        <input placeholder="Username" value={form.username} onChange={e=>setForm({...form, username:e.target.value})}/>
+        <input placeholder="Имя" value={form.displayName} onChange={e=>setForm({...form, displayName:e.target.value})}/>
+        <input placeholder="@username" value={form.username} onChange={e=>setForm({...form, username:e.target.value.replace(/^@+/, '')})}/>
         <input placeholder="Email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})}/>
-        <small className="authHint">После регистрации нужно подтвердить почту. Код должен прийти письмом, а при EMAIL_DEBUG_CODE=true будет показан здесь.</small>
+        <small className="authHint">Имя видно людям, а @username нужен для входа, поиска и ссылок. После регистрации нужно подтвердить почту.</small>
         <input type="password" placeholder="Пароль" value={form.password} onChange={e=>setForm({...form, password:e.target.value})}/>
         <div className="captchaBox">
           <span>Проверка: <b>{captcha?.question || '...'}</b></span>
@@ -128,7 +130,7 @@ export default function Auth({ onAuth, config }) {
       </>}
 
       {mode === 'login' && <>
-        <input placeholder="Логин или email" value={form.login} onChange={e=>setForm({...form, login:e.target.value})}/>
+        <input placeholder="Email или @username" value={form.login} onChange={e=>setForm({...form, login:e.target.value})}/>
         <input type="password" placeholder="Пароль" value={form.password} onChange={e=>setForm({...form, password:e.target.value})}/>
       </>}
 
