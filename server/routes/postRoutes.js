@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../database');
 const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const { checkText, rejectByModeration } = require('../utils_moderation');
+const { checkPublicText, moderateImageFile, rejectByModeration } = require('../utils_moderation');
 const { saveUploadedFile } = require('../utils/storage');
 const { createActivity } = require('../utils/activity');
 const router = express.Router();
@@ -57,12 +57,19 @@ router.get('/', auth, (req, res) => {
 router.post('/', auth, notBlocked, upload.any(), async (req, res, next) => {
   try {
     const text = String(req.body.text || '').slice(0, MAX_POST_TEXT);
-    const moderation = checkText(text);
+    const moderation = await checkPublicText(text, { authorId: req.user.id, targetType: 'post' });
     if (!moderation.ok) return rejectByModeration(res, db, { userId: req.user.id, targetType: 'post', text, reason: moderation.reason, matched: moderation.matched, publicMessage: 'Пост не опубликован' });
 
     const imageFiles = (Array.isArray(req.files) ? req.files : [])
       .filter(file => file.mimetype && file.mimetype.startsWith('image/'))
       .slice(0, MAX_POST_IMAGES);
+
+    for (const file of imageFiles) {
+      const imageModeration = await moderateImageFile(file);
+      if (!imageModeration.ok) {
+        return rejectByModeration(res, db, { userId: req.user.id, targetType: 'post_image', text: file.originalname, reason: imageModeration.reason, matched: imageModeration.matched, publicMessage: 'Фото не прошло модерацию' });
+      }
+    }
 
     if (!text.trim() && imageFiles.length === 0) return res.status(400).json({ message: 'Добавь текст или фото' });
 
@@ -95,13 +102,13 @@ router.post('/:id/like', auth, notBlocked, (req, res) => {
   res.json({ ok: true });
 });
 
-router.post('/:id/comments', auth, notBlocked, (req, res) => {
+router.post('/:id/comments', auth, notBlocked, async (req, res) => {
   const postId = Number(req.params.id);
   const post = db.prepare('SELECT id, authorId FROM posts WHERE id = ?').get(postId);
   if (!post) return res.status(404).json({ message: 'Пост не найден' });
   const text = (req.body.text || '').trim();
   if (!text) return res.status(400).json({ message: 'Комментарий пустой' });
-  const moderation = checkText(text);
+  const moderation = await checkPublicText(text, { authorId: req.user.id, targetType: 'post_comment', targetId: postId });
   if (!moderation.ok) return rejectByModeration(res, db, { userId: req.user.id, targetType: 'post_comment', targetId: postId, text, reason: moderation.reason, matched: moderation.matched, publicMessage: 'Комментарий не отправлен' });
   db.prepare('INSERT INTO comments (postId, authorId, text) VALUES (?, ?, ?)').run(postId, req.user.id, text.slice(0, 1000));
   createActivity({ userId: post.authorId, actorId: req.user.id, type: 'post_comment', targetType: 'post', targetId: postId, text: 'прокомментировал ваш пост' });

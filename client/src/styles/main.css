@@ -304,3 +304,37 @@ body[data-theme="dark"] {
 }
 body[data-theme="dark"] button:not(.danger):not(.ghost):not(.cleanButton):not(.brandButton):not(.miniProfile):not(.active){background:linear-gradient(135deg,#00b7ff,#6d5dfc)!important;color:#fff!important;box-shadow:0 10px 22px rgba(0,183,255,.15)!important}
 body[data-theme="dark"] button.ghost,body[data-theme="dark"] button.active{background:#131b2c!important;color:#e2e8f0!important;border:1px solid #243247!important}.fileButton{border:0}
+
+
+/* ===== Final fix: theme buttons, separated names, faster reports UI ===== */
+:root{
+  --button-bg:linear-gradient(135deg,#7c3cff,#2aa7ff);
+  --button-hover:brightness(1.08);
+  --button-soft:#202232;
+  --button-soft-text:#ffffff;
+}
+button:not(.danger):not(.ghost):not(.cleanButton):not(.brandButton):not(.miniProfile):not(.active),
+.fileButton{
+  background:var(--button-bg)!important;
+  color:var(--button-text,#fff)!important;
+}
+button.ghost,button.active{background:var(--button-soft)!important;color:var(--button-soft-text)!important;border:1px solid var(--border)!important}
+body[data-theme="default"]{--button-bg:linear-gradient(135deg,#7c3cff,#2aa7ff);--button-soft:#202232;--button-soft-text:#ffffff}
+body[data-theme="dark"]{
+  --bg:#050505!important;--card:#111111!important;--sidebar:#090909!important;--input:#151515!important;--border:#2a2a2a!important;--text:#f8fafc!important;--muted:#a1a1aa!important;--accent:#f59e0b!important;--accent2:#ef4444!important;--button-bg:linear-gradient(135deg,#f59e0b,#ef4444)!important;--button-soft:#1b1b1b!important;--button-soft-text:#f8fafc!important;--danger:#ef4444!important
+}
+body[data-theme="light"]{
+  --bg:#eef1f6!important;--card:#fbfcff!important;--sidebar:#f7f8fc!important;--input:#ffffff!important;--border:#d7ddea!important;--text:#111827!important;--muted:#64748b!important;--accent:#334155!important;--accent2:#64748b!important;--button-bg:linear-gradient(135deg,#334155,#64748b)!important;--button-soft:#e8edf5!important;--button-soft-text:#1e293b!important;--danger:#dc2626!important
+}
+body[data-theme="dark"] button:not(.danger):not(.ghost):not(.cleanButton):not(.brandButton):not(.miniProfile):not(.active),
+body[data-theme="dark"] .fileButton{background:linear-gradient(135deg,#f59e0b,#ef4444)!important;color:#111!important;box-shadow:0 10px 22px rgba(245,158,11,.18)!important}
+body[data-theme="dark"] button.ghost,body[data-theme="dark"] button.active{background:#1b1b1b!important;color:#f8fafc!important;border-color:#2a2a2a!important}
+body[data-theme="light"] button:not(.danger):not(.ghost):not(.cleanButton):not(.brandButton):not(.miniProfile):not(.active),
+body[data-theme="light"] .fileButton{background:linear-gradient(135deg,#334155,#64748b)!important;color:#fff!important;box-shadow:0 8px 18px rgba(51,65,85,.13)!important}
+body[data-theme="light"] button.ghost,body[data-theme="light"] button.active{background:#e8edf5!important;color:#1e293b!important;border-color:#d7ddea!important;box-shadow:none!important}
+body[data-theme="light"] .liked{background:linear-gradient(135deg,#334155,#475569)!important;color:#fff!important}
+.nameStack,.videoName,.profileNameBlock{display:grid!important;grid-template-columns:1fr!important;gap:2px!important;align-items:start!important;min-width:0!important}
+.nameStack b,.videoName b,.profileNameBlock h2{display:block!important;margin:0!important;line-height:1.15!important}
+.nameStack small,.videoName small,.profileHandle,.userHandle{display:block!important;margin-left:0!important;color:var(--muted)!important;font-weight:800!important;line-height:1.15!important}
+.handle{display:block!important;margin-left:0!important}.badgeIcon{display:inline-block!important;margin-left:6px!important;vertical-align:middle!important}
+.reportItem{border-left:3px solid var(--accent)!important}.devPanelWindow .devSection{scroll-behavior:auto!important}

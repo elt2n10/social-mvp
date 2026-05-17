@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../database');
 const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const { checkText, rejectByModeration } = require('../utils_moderation');
+const { checkPublicText, moderateImageFile, rejectByModeration } = require('../utils_moderation');
 const { saveUploadedFile } = require('../utils/storage');
 const { createActivity } = require('../utils/activity');
 const router = express.Router();
@@ -40,7 +40,8 @@ router.post('/', auth, notBlocked, upload.single('video'), async (req, res, next
     }
 
     const description = req.body.description || '';
-    const moderation = checkText(description);
+    const moderation = await checkPublicText(description, { authorId: req.user.id, targetType: 'video' });
+    // Видео напрямую не отправляем в AI на 512 МБ сервере: проверяем описание. Для медиа используем фото/аватарки; видео позже можно проверять через превью-кадр/Cloudinary.
     if (!moderation.ok) return rejectByModeration(res, db, { userId: req.user.id, targetType: 'video', text: description, reason: moderation.reason, matched: moderation.matched, publicMessage: 'Видео не опубликовано' });
     const videoUrl = await saveUploadedFile(req.file, 'yved/videos');
     const r = db.prepare('INSERT INTO videos (authorId, videoUrl, description, moderationStatus) VALUES (?, ?, ?, ?)').run(req.user.id, videoUrl, description.slice(0, 600), 'approved');
@@ -61,13 +62,13 @@ router.post('/:id/like', auth, notBlocked, (req, res) => {
   res.json({ ok: true });
 });
 
-router.post('/:id/comments', auth, notBlocked, (req, res) => {
+router.post('/:id/comments', auth, notBlocked, async (req, res) => {
   const videoId = Number(req.params.id);
   const video = db.prepare('SELECT id, authorId FROM videos WHERE id = ?').get(videoId);
   if (!video) return res.status(404).json({ message: 'Видео не найдено' });
   const text = (req.body.text || '').trim();
   if (!text) return res.status(400).json({ message: 'Комментарий пустой' });
-  const moderation = checkText(text);
+  const moderation = await checkPublicText(text, { authorId: req.user.id, targetType: 'video_comment', targetId: videoId });
   if (!moderation.ok) return rejectByModeration(res, db, { userId: req.user.id, targetType: 'video_comment', targetId: videoId, text, reason: moderation.reason, matched: moderation.matched, publicMessage: 'Комментарий не отправлен' });
   db.prepare('INSERT INTO video_comments (videoId, authorId, text) VALUES (?, ?, ?)').run(videoId, req.user.id, text.slice(0, 1000));
   createActivity({ userId: video.authorId, actorId: req.user.id, type: 'video_comment', targetType: 'video', targetId: videoId, text: 'прокомментировал ваше видео' });

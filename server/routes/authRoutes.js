@@ -23,6 +23,7 @@ function publicUser(user) {
   return {
     id: user.id,
     username: user.username,
+    displayName: user.displayName || user.username,
     maskedEmail: maskEmail(user.email),
     avatar: user.avatar,
     description: user.description,
@@ -44,7 +45,12 @@ function normalizeEmail(email) {
 }
 
 function normalizeUsername(username) {
-  return String(username || '').trim();
+  return String(username || '').trim().replace(/^@+/, '').toLowerCase();
+}
+
+function normalizeDisplayName(displayName, username) {
+  const clean = String(displayName || '').trim();
+  return (clean || username).slice(0, 40);
 }
 
 function canSendEmailCode(user) {
@@ -132,12 +138,13 @@ router.post('/check-invite', (req, res) => {
 router.post('/register', async (req, res, next) => {
   try {
     const username = normalizeUsername(req.body.username);
+    const displayName = normalizeDisplayName(req.body.displayName || req.body.name, username);
     const email = normalizeEmail(req.body.email);
     const password = String(req.body.password || '');
     const captchaId = req.body.captchaId;
     const captchaAnswer = req.body.captchaAnswer || req.body.captcha || req.body.code || req.body.captchaCode;
 
-    if (!username || !email || !password) return res.status(400).json({ message: 'Заполни все поля' });
+    if (!username || !email || !password || !displayName) return res.status(400).json({ message: 'Заполни все поля' });
     if (!(await verifyCaptcha(captchaId, captchaAnswer))) return res.status(400).json({ message: 'Капча решена неверно или устарела' });
     if (!/^[a-zA-Z0-9_а-яА-ЯёЁ.-]{3,24}$/.test(username)) return res.status(400).json({ message: 'Username 3-24 символа, без странных знаков' });
     if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ message: 'Некорректный email' });
@@ -171,9 +178,9 @@ router.post('/register', async (req, res, next) => {
 
     const passwordHash = await bcrypt.hash(password, 12);
     const result = db.prepare(`
-      INSERT INTO users (username, email, passwordHash, isEmailVerified)
-      VALUES (?, ?, ?, 0)
-    `).run(username, email, passwordHash);
+      INSERT INTO users (username, displayName, email, passwordHash, isEmailVerified)
+      VALUES (?, ?, ?, ?, 0)
+    `).run(username, displayName, email, passwordHash);
 
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(result.lastInsertRowid);
     const mailInfo = await createAndSendEmailCode(user);
@@ -240,10 +247,11 @@ router.post('/resend-verification', async (req, res, next) => {
 });
 
 router.post('/login', async (req, res) => {
-  const login = String(req.body.login || '').trim();
+  const loginRaw = String(req.body.login || '').trim();
+  const login = loginRaw.replace(/^@+/, '').toLowerCase();
   const password = String(req.body.password || '');
 
-  const user = db.prepare('SELECT * FROM users WHERE username = ? OR email = ?').get(login, login.toLowerCase());
+  const user = db.prepare('SELECT * FROM users WHERE LOWER(username) = ? OR LOWER(email) = ?').get(login, login);
   if (!user) return res.status(401).json({ message: 'Неверный логин или пароль' });
 
   const ok = await bcrypt.compare(password, user.passwordHash);

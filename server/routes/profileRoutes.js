@@ -2,7 +2,7 @@ const express = require('express');
 const db = require('../database');
 const { auth, notBlocked } = require('../middleware/auth');
 const upload = require('../middleware/upload');
-const { checkText, rejectByModeration } = require('../utils_moderation');
+const { checkPublicText, moderateImageFile, rejectByModeration } = require('../utils_moderation');
 const { saveUploadedFile } = require('../utils/storage');
 const { createActivity } = require('../utils/activity');
 const router = express.Router();
@@ -88,8 +88,14 @@ router.put('/me', auth, notBlocked, upload.fields([{ name: 'avatar', maxCount: 1
     const profileColor = req.body.profileColor ?? req.user.profileColor ?? '';
     if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) return res.status(400).json({ message: '@username: 3-24 символа, только латиница, цифры и _' });
     if (displayName.length < 2 || displayName.length > 40) return res.status(400).json({ message: 'Имя должно быть от 2 до 40 символов' });
-    const moderation = checkText(description);
+    const moderation = await checkPublicText(description, { authorId: req.user.id, targetType: 'profile_description', targetId: req.user.id });
     if (!moderation.ok) return rejectByModeration(res, db, { userId: req.user.id, targetType: 'profile_description', targetId: req.user.id, text: description, reason: moderation.reason, matched: moderation.matched, publicMessage: 'Описание не сохранено' });
+    for (const file of [req.files?.avatar?.[0], req.files?.cover?.[0]].filter(Boolean)) {
+      const imageModeration = await moderateImageFile(file);
+      if (!imageModeration.ok) {
+        return rejectByModeration(res, db, { userId: req.user.id, targetType: 'profile_image', targetId: req.user.id, text: file.originalname, reason: imageModeration.reason, matched: imageModeration.matched, publicMessage: 'Фото профиля не прошло модерацию' });
+      }
+    }
     const avatar = req.files?.avatar?.[0] ? await saveUploadedFile(req.files.avatar[0], 'yved/avatars') : req.user.avatar;
     const coverUrl = req.files?.cover?.[0] ? await saveUploadedFile(req.files.cover[0], 'yved/covers') : req.user.coverUrl;
 

@@ -133,8 +133,109 @@ function checkText(text = '', meta = {}) {
   return { ok: true, reason: '' };
 }
 
+function moderationProvider() {
+  return String(process.env.MODERATION_PROVIDER || '').trim().toLowerCase();
+}
+
+function openAiEnabled() {
+  return moderationProvider() === 'openai' && Boolean(process.env.OPENAI_API_KEY);
+}
+
+async function callOpenAiModeration(input) {
+  if (!openAiEnabled()) return { ok: true, skipped: true };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Number(process.env.MODERATION_TIMEOUT_MS || 8000));
+  try {
+    const response = await fetch('https://api.openai.com/v1/moderations', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODERATION_MODEL || 'omni-moderation-latest',
+        input
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('[YVED MODERATION API ERROR]', data.error?.message || response.statusText);
+      return { ok: true, skipped: true, reason: 'Внешняя модерация недоступна' };
+    }
+    const result = data.results?.[0];
+    if (result?.flagged) {
+      const categories = Object.entries(result.categories || {})
+        .filter(([, value]) => Boolean(value))
+        .map(([key]) => key)
+        .join(', ');
+      return { ok: false, reason: `AI-модерация: ${categories || 'подозрительный контент'}`, matched: categories || 'ai' };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error('[YVED MODERATION API ERROR]', err.message);
+    return { ok: true, skipped: true, reason: 'Внешняя модерация недоступна' };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function moderateTextWithAi(text) {
+  const value = String(text || '').trim();
+  if (!value || !openAiEnabled()) return { ok: true };
+  return callOpenAiModeration(value);
+}
+
+async function moderateImageFile(file) {
+  if (!file || !openAiEnabled()) return { ok: true };
+  try {
+    const fs = require('fs');
+    const ext = String(file.mimetype || 'image/jpeg').split('/')[1] || 'jpeg';
+    const base64 = fs.readFileSync(file.path).toString('base64');
+    const dataUrl = `data:${file.mimetype || 'image/jpeg'};base64,${base64}`;
+    return await callOpenAiModeration([{ type: 'image_url', image_url: { url: dataUrl } }]);
+  } catch (err) {
+    console.error('[YVED IMAGE MODERATION ERROR]', err.message);
+    return { ok: true, skipped: true };
+  }
+}
+
+async function checkPublicText(text = '', meta = {}) {
+  const local = checkText(text, meta);
+  if (!local.ok) return local;
+  const ai = await moderateTextWithAi(text);
+  if (!ai.ok) {
+    logModeration({ ...meta, text, reason: ai.reason, action: 'blocked' });
+    return ai;
+  }
+  return { ok: true, reason: '' };
+}
+
+function rejectByModeration(res, dbInstance, payload = {}) {
+  const reason = payload.reason || 'Контент не прошёл модерацию';
+  try {
+    const database = dbInstance || db;
+    database.prepare(`
+      INSERT INTO moderation_logs (userId, targetType, targetId, action, reason, matched, textPreview)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      payload.userId || payload.authorId || 0,
+      payload.targetType || 'unknown',
+      payload.targetId || 0,
+      'block',
+      reason,
+      payload.matched || '',
+      String(payload.text || '').slice(0, 500)
+    );
+  } catch {}
+  return res.status(400).json({ message: payload.publicMessage || 'Контент не прошёл модерацию', moderationReason: reason });
+}
+
 module.exports = {
   checkText,
+  checkPublicText,
+  moderateImageFile,
+  rejectByModeration,
   getForbiddenWords,
   setForbiddenWords,
   addForbiddenWord,

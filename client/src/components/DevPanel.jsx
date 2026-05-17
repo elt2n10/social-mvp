@@ -57,6 +57,27 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
   }
 
   useEffect(() => { if (open) load(); }, [open]);
+
+  useEffect(() => {
+    if (!open || section !== 'reports') return;
+    let alive = true;
+    async function refreshReports() {
+      try {
+        const [nextReports, nextStats] = await Promise.all([
+          api('/api/dev/reports').catch(() => []),
+          api('/api/dev/stats').catch(() => null)
+        ]);
+        if (alive) {
+          setReports(nextReports);
+          if (nextStats) setStats(nextStats);
+        }
+      } catch {}
+    }
+    refreshReports();
+    const timer = setInterval(refreshReports, 2500);
+    return () => { alive = false; clearInterval(timer); };
+  }, [open, section]);
+
   if (!open) return null;
 
   async function action(fn) {

@@ -38,14 +38,14 @@ const THEME_PRESETS = {
     inputColor: '#11131d', dangerColor: '#d83d5a'
   },
   dark: {
-    accentColor: '#00b7ff', secondColor: '#6d5dfc', backgroundColor: '#02030a', cardColor: '#0b0f19',
-    textColor: '#f8fafc', mutedColor: '#94a3b8', borderColor: '#1e293b', sidebarColor: '#050814',
-    inputColor: '#0f1524', dangerColor: '#ff3b5c'
+    accentColor: '#f59e0b', secondColor: '#ef4444', backgroundColor: '#050505', cardColor: '#111111',
+    textColor: '#f8fafc', mutedColor: '#a1a1aa', borderColor: '#2a2a2a', sidebarColor: '#090909',
+    inputColor: '#151515', dangerColor: '#ef4444'
   },
   light: {
-    accentColor: '#5b5fe8', secondColor: '#8b5cf6', backgroundColor: '#eef1f7', cardColor: '#f8fafc',
-    textColor: '#172033', mutedColor: '#5f697c', borderColor: '#ccd4e3', sidebarColor: '#f2f5fb',
-    inputColor: '#ffffff', dangerColor: '#d33b4c'
+    accentColor: '#334155', secondColor: '#64748b', backgroundColor: '#eef1f6', cardColor: '#fbfcff',
+    textColor: '#111827', mutedColor: '#64748b', borderColor: '#d7ddea', sidebarColor: '#f7f8fc',
+    inputColor: '#ffffff', dangerColor: '#dc2626'
   }
 };
 
@@ -60,6 +60,7 @@ function getEffectiveConfig(config) {
   return {
     ...config,
     ...preset,
+    themeName: presetName,
     animationsEnabled: localAnimations ?? (config.animationsEnabled !== false && config.animationsEnabled !== 'false'),
     soundsEnabled: config.soundsEnabled !== false && config.soundsEnabled !== 'false'
   };
@@ -80,7 +81,7 @@ function applyConfig(config) {
   root.style.setProperty('--danger', effective.dangerColor || defaultConfig.dangerColor);
   root.style.setProperty('--radius', `${effective.buttonRadius || 14}px`);
   document.body.classList.toggle('noAnimations', !effective.animationsEnabled);
-  document.body.dataset.theme = localStorage.getItem('yvedTheme') || 'default';
+  document.body.dataset.theme = effective.themeName || 'default';
   const favicon = document.querySelector("link[rel='icon']") || document.createElement('link');
   favicon.rel = 'icon';
   favicon.type = 'image/png';
