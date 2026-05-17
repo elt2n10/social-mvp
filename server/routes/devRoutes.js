@@ -40,8 +40,27 @@ router.get('/stats', auth, devOnly, (req, res) => {
 });
 
 router.get('/users', auth, devOnly, (req, res) => {
-  const users = db.prepare('SELECT id, username, email, avatar, coverUrl, description, isBlocked, isEmailVerified, createdAt FROM users ORDER BY id DESC LIMIT 200').all()
+  const users = db.prepare('SELECT id, username, displayName, email, avatar, coverUrl, description, isBlocked, isEmailVerified, createdAt FROM users ORDER BY id DESC LIMIT 200').all()
     .map(u => ({ ...u, email: u.email, isBlocked: Boolean(u.isBlocked), isEmailVerified: Boolean(u.isEmailVerified), isDev: isDevEmail(u.email) }));
+  res.json(users);
+});
+
+router.get('/users/search', auth, devOnly, (req, res) => {
+  const q = String(req.query.q || '').trim().replace(/^@/, '');
+  if (!q) return res.json([]);
+  const like = `%${q}%`;
+  const users = db.prepare(`
+    SELECT id, username, displayName, email, avatar, coverUrl, description, isBlocked, isEmailVerified, createdAt
+    FROM users
+    WHERE username LIKE ? OR displayName LIKE ? OR email LIKE ?
+    ORDER BY id DESC LIMIT 80
+  `).all(like, like, like).map(u => ({
+    ...u,
+    email: u.email,
+    isBlocked: Boolean(u.isBlocked),
+    isEmailVerified: Boolean(u.isEmailVerified),
+    isDev: isDevEmail(u.email)
+  }));
   res.json(users);
 });
 
@@ -53,6 +72,19 @@ router.get('/recent/posts', auth, devOnly, (req, res) => {
     ORDER BY p.id DESC LIMIT 40
   `).all().map(p => ({ ...p, isHidden: Boolean(p.isHidden), imageUrls: JSON.parse(p.imageUrls || '[]') }));
   res.json(rows);
+});
+
+router.get('/posts/search', auth, devOnly, (req, res) => {
+  const id = Number(req.query.id || 0);
+  if (!id) return res.json([]);
+  const row = db.prepare(`
+    SELECT p.id, p.text, p.imageUrl, p.isHidden, p.createdAt, u.username authorName,
+      COALESCE((SELECT json_group_array(imageUrl) FROM (SELECT pi.imageUrl FROM post_images pi WHERE pi.postId = p.id ORDER BY pi.position ASC)), '[]') imageUrls
+    FROM posts p JOIN users u ON u.id = p.authorId
+    WHERE p.id = ?
+  `).get(id);
+  if (!row) return res.json([]);
+  res.json([{ ...row, isHidden: Boolean(row.isHidden), imageUrls: JSON.parse(row.imageUrls || '[]') }]);
 });
 
 router.get('/recent/videos', auth, devOnly, (req, res) => {
@@ -238,6 +270,34 @@ router.get('/reports', auth, devOnly, (req, res) => {
   };
 
   res.json(reports.map(mapTarget));
+});
+
+
+router.put('/reports/:id/skip', auth, devOnly, (req, res) => {
+  db.prepare('DELETE FROM reports WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
+});
+
+router.delete('/reports/:id/delete-target', auth, devOnly, (req, res) => {
+  const report = db.prepare('SELECT * FROM reports WHERE id = ?').get(req.params.id);
+  if (!report) return res.status(404).json({ message: 'Жалоба не найдена' });
+  const targetId = Number(report.targetId);
+  if (report.targetType === 'post') {
+    db.prepare('DELETE FROM posts WHERE id = ?').run(targetId);
+  } else if (report.targetType === 'video') {
+    db.prepare('DELETE FROM videos WHERE id = ?').run(targetId);
+  } else if (report.targetType === 'comment') {
+    db.prepare('DELETE FROM comments WHERE id = ?').run(targetId);
+  } else if (report.targetType === 'video_comment') {
+    db.prepare('DELETE FROM video_comments WHERE id = ?').run(targetId);
+  } else if (report.targetType === 'profile') {
+    if (targetId === req.user.id) return res.status(400).json({ message: 'Нельзя удалить свой аккаунт' });
+    db.prepare('DELETE FROM users WHERE id = ?').run(targetId);
+  } else {
+    return res.status(400).json({ message: 'Этот тип жалобы нельзя удалить автоматически' });
+  }
+  db.prepare('DELETE FROM reports WHERE id = ?').run(req.params.id);
+  res.json({ ok: true });
 });
 
 router.get('/backup', auth, devOnly, (req, res) => {

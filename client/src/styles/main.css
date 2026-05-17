@@ -263,3 +263,44 @@ body[data-theme="light"] .bubble.mine { background:#6d28d9!important;color:white
   body.videoMode .tiktokCard{height:calc(100dvh - 60px)!important;min-height:calc(100dvh - 60px)!important;margin:0!important;border-radius:0!important;border:0!important;box-shadow:none!important;scroll-snap-align:start!important}
   body.videoMode .bottomNav{height:60px!important;min-height:60px!important}
 }
+
+/* ===== Dev sections + cleaner theme buttons ===== */
+.devPanelWindow{height:min(92vh,900px);display:flex;flex-direction:column;overflow:hidden}.devPanelTop{flex:0 0 auto}.devTabs{display:flex;gap:8px;overflow-x:auto;padding:8px 0 12px;flex:0 0 auto;scrollbar-width:none}.devTabs::-webkit-scrollbar{display:none}.devTabs button{white-space:nowrap;padding:9px 12px}.devSection{overflow:auto;min-height:0;padding-right:4px;display:grid;gap:14px}.devExitButton{margin-top:12px;flex:0 0 auto}.devSearch{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center}.reportItem{align-items:flex-start}.reportItem .devActions{align-items:stretch}
+@media(max-width:760px){.devPanelWindow{height:96dvh;width:96vw}.devSearch{grid-template-columns:1fr}.devTabs button{padding:8px 10px;font-size:13px}}
+
+body[data-theme="light"] {
+  --bg:#eef1f7!important;
+  --card:#f8fafc!important;
+  --sidebar:#f2f5fb!important;
+  --input:#ffffff!important;
+  --border:#ccd4e3!important;
+  --text:#172033!important;
+  --muted:#5f697c!important;
+  --accent:#5b5fe8!important;
+  --accent2:#8b5cf6!important;
+  --danger:#d33b4c!important;
+}
+body[data-theme="light"] button:not(.danger):not(.ghost):not(.cleanButton):not(.brandButton):not(.miniProfile):not(.active) {
+  background:linear-gradient(135deg,#5b5fe8,#8b5cf6)!important;color:#fff!important;box-shadow:0 8px 18px rgba(91,95,232,.18)!important
+}
+body[data-theme="light"] button.ghost,body[data-theme="light"] button.active {
+  background:#e4e8f4!important;color:#1b2540!important;border:1px solid #cbd3e4!important;box-shadow:none!important
+}
+body[data-theme="light"] button.active{background:#d9ddf0!important;color:#4f46e5!important}
+body[data-theme="light"] .danger{background:#d33b4c!important;color:#fff!important}
+body[data-theme="light"] .fileButton{background:linear-gradient(135deg,#5b5fe8,#8b5cf6)!important;color:#fff!important}
+
+body[data-theme="dark"] {
+  --bg:#02030a!important;
+  --card:#0b0f19!important;
+  --sidebar:#050814!important;
+  --input:#0f1524!important;
+  --border:#1e293b!important;
+  --text:#f8fafc!important;
+  --muted:#94a3b8!important;
+  --accent:#00b7ff!important;
+  --accent2:#6d5dfc!important;
+  --danger:#ff3b5c!important;
+}
+body[data-theme="dark"] button:not(.danger):not(.ghost):not(.cleanButton):not(.brandButton):not(.miniProfile):not(.active){background:linear-gradient(135deg,#00b7ff,#6d5dfc)!important;color:#fff!important;box-shadow:0 10px 22px rgba(0,183,255,.15)!important}
+body[data-theme="dark"] button.ghost,body[data-theme="dark"] button.active{background:#131b2c!important;color:#e2e8f0!important;border:1px solid #243247!important}.fileButton{border:0}

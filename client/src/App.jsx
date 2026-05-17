@@ -38,14 +38,14 @@ const THEME_PRESETS = {
     inputColor: '#11131d', dangerColor: '#d83d5a'
   },
   dark: {
-    accentColor: '#7c3cff', secondColor: '#7c3cff', backgroundColor: '#050509', cardColor: '#0f1117',
-    textColor: '#f5f5f7', mutedColor: '#9ca3af', borderColor: '#252936', sidebarColor: '#080a0f',
-    inputColor: '#10131b', dangerColor: '#ef4444'
+    accentColor: '#00b7ff', secondColor: '#6d5dfc', backgroundColor: '#02030a', cardColor: '#0b0f19',
+    textColor: '#f8fafc', mutedColor: '#94a3b8', borderColor: '#1e293b', sidebarColor: '#050814',
+    inputColor: '#0f1524', dangerColor: '#ff3b5c'
   },
   light: {
-    accentColor: '#6d28d9', secondColor: '#7c3aed', backgroundColor: '#eef0f7', cardColor: '#f9fafc',
-    textColor: '#111827', mutedColor: '#5b6475', borderColor: '#cfd4e4', sidebarColor: '#f4f6fb',
-    inputColor: '#ffffff', dangerColor: '#dc2626'
+    accentColor: '#5b5fe8', secondColor: '#8b5cf6', backgroundColor: '#eef1f7', cardColor: '#f8fafc',
+    textColor: '#172033', mutedColor: '#5f697c', borderColor: '#ccd4e3', sidebarColor: '#f2f5fb',
+    inputColor: '#ffffff', dangerColor: '#d33b4c'
   }
 };
 

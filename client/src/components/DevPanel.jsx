@@ -1,7 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { api, fileUrl } from '../api/api';
 
+const sections = [
+  ['dashboard', 'Обзор'],
+  ['site', 'Сайт'],
+  ['users', 'Пользователи'],
+  ['posts', 'Посты'],
+  ['videos', 'Видео'],
+  ['reports', 'Жалобы'],
+  ['moderation', 'Модерация'],
+  ['stickers', 'Стикеры'],
+  ['backup', 'Backup']
+];
+
 export default function DevPanel({ open, onClose, onExitDev, config, onConfig }) {
+  const [section, setSection] = useState('dashboard');
   const [stats, setStats] = useState(null);
   const [users, setUsers] = useState([]);
   const [posts, setPosts] = useState([]);
@@ -19,6 +32,8 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
   const [forbiddenText, setForbiddenText] = useState('');
   const [moderationLogs, setModerationLogs] = useState([]);
   const [reports, setReports] = useState([]);
+  const [userQuery, setUserQuery] = useState('');
+  const [postIdQuery, setPostIdQuery] = useState('');
 
   async function load() {
     try {
@@ -34,13 +49,26 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
       setModerationLogs(await api('/api/dev/moderation/logs').catch(() => []));
       setReports(await api('/api/dev/reports').catch(() => []));
       const cfg = await api('/api/dev/config');
-      setSite(cfg); onConfig?.(cfg);
-    } catch (e) { setError(e.message); }
+      setSite(cfg);
+      onConfig?.(cfg);
+    } catch (e) {
+      setError(e.message);
+    }
   }
+
   useEffect(() => { if (open) load(); }, [open]);
   if (!open) return null;
 
-  async function action(fn) { try { setError(''); await fn(); await load(); } catch(e) { setError(e.message); } }
+  async function action(fn) {
+    try {
+      setError('');
+      await fn();
+      await load();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   function setField(key, value) { setSite(s => ({ ...s, [key]: value })); }
 
   async function saveConfig(e) {
@@ -50,7 +78,10 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
     if (logo) fd.append('logo', logo);
     if (favicon) fd.append('favicon', favicon);
     const updated = await api('/api/dev/config', { method:'PUT', body: fd });
-    setLogo(null); setFavicon(null); setSite(updated); onConfig?.(updated);
+    setLogo(null);
+    setFavicon(null);
+    setSite(updated);
+    onConfig?.(updated);
   }
 
   async function downloadBackup() {
@@ -75,24 +106,6 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
     setBadgeTitles(prev => ({ ...prev, [userId]: '' }));
   }
 
-
-  function resetSiteColors() {
-    setSite(s => ({
-      ...s,
-      accentColor: '#7c3cff',
-      secondColor: '#2aa7ff',
-      backgroundColor: '#090a10',
-      cardColor: '#11131d',
-      textColor: '#f2f3ff',
-      mutedColor: '#8e94ad',
-      borderColor: '#25293d',
-      sidebarColor: '#0d0f18',
-      inputColor: '#11131d',
-      dangerColor: '#d83d5a',
-      buttonRadius: '14'
-    }));
-  }
-
   async function uploadSticker() {
     if (!stickerFile) throw new Error('Выбери картинку стикера');
     const fd = new FormData();
@@ -110,134 +123,185 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
     setForbiddenText(updated.map(w => w.word).join('\n'));
   }
 
-  return <div className="modalBackdrop">
-    <div className="modal big devPanel">
-      <div className="row between"><h2>Панель разработчика Yved</h2><button onClick={onClose}>Закрыть</button></div>
-      {error && <p className="error">{error}</p>}
-      <div className="stats">
-        <div><b>{stats?.users ?? 0}</b><span>пользователей</span></div>
-        <div><b>{stats?.posts ?? 0}</b><span>постов</span></div>
-        <div><b>{stats?.videos ?? 0}</b><span>видео</span></div>
-        <div><b>{stats?.hiddenPosts ?? 0}</b><span>скрытых постов</span></div>
-        <div><b>{stats?.hiddenVideos ?? 0}</b><span>скрытых видео</span></div>
-        <div><b>{stats?.reports ?? 0}</b><span>жалоб</span></div>
-        <div><b>{stats?.stickers ?? 0}</b><span>стикеров</span></div>
-      </div>
+  async function searchUsers(e) {
+    e.preventDefault();
+    const q = userQuery.trim();
+    setUsers(q ? await api(`/api/dev/users/search?q=${encodeURIComponent(q)}`) : await api('/api/dev/users'));
+  }
 
-      <form className="card settingsGroup" onSubmit={saveConfig}>
-        <h3>Изменить сайт без нового кода</h3>
-        <input value={site.siteName || ''} onChange={e=>setField('siteName', e.target.value)} placeholder="Название сайта" />
-        <p className="safeText">Глобальная тема применяется для всех, у кого в настройках выбрано “По умолчанию”.</p>
-        <label>Тема сайта по умолчанию
-          <select value={site.siteTheme || 'default'} onChange={e=>setField('siteTheme', e.target.value)}>
-            <option value="default">Стартовая Yved</option>
-            <option value="dark">Тёмная</option>
-            <option value="light">Белая</option>
-          </select>
-        </label>
-        <label>Скругление кнопок<input type="range" min="4" max="28" value={Number(site.buttonRadius || 14)} onChange={e=>setField('buttonRadius', e.target.value)} /></label>
-        <label>Лого сайта<input type="file" accept="image/*" onChange={e=>setLogo(e.target.files[0])} /></label>
-        <label>Иконка вкладки<input type="file" accept="image/*" onChange={e=>setFavicon(e.target.files[0])} /></label>
-        <label className="checkLine"><input type="checkbox" checked={site.soundsEnabled === true || site.soundsEnabled === 'true'} onChange={e=>setField('soundsEnabled', e.target.checked)} /> Звуки</label>
-        <label className="checkLine"><input type="checkbox" checked={site.animationsEnabled === true || site.animationsEnabled === 'true'} onChange={e=>setField('animationsEnabled', e.target.checked)} /> Анимации по умолчанию</label>
-        <label className="checkLine"><input type="checkbox" checked={site.inviteEnabled === true || site.inviteEnabled === 'true'} onChange={e=>setField('inviteEnabled', e.target.checked)} /> Закрыть сайт invite-ссылкой</label>
-        <button>Сохранить настройки сайта</button>
+  async function searchPost(e) {
+    e.preventDefault();
+    const id = postIdQuery.trim();
+    setPosts(id ? await api(`/api/dev/posts/search?id=${encodeURIComponent(id)}`) : await api('/api/dev/recent/posts'));
+  }
+
+  function renderDashboard() {
+    return <div className="devSection"><div className="stats">
+      <div><b>{stats?.users ?? 0}</b><span>пользователей</span></div>
+      <div><b>{stats?.posts ?? 0}</b><span>постов</span></div>
+      <div><b>{stats?.videos ?? 0}</b><span>видео</span></div>
+      <div><b>{stats?.reports ?? 0}</b><span>жалоб</span></div>
+      <div><b>{stats?.stickers ?? 0}</b><span>стикеров</span></div>
+      <div><b>{stats?.moderationLogs ?? 0}</b><span>модерация</span></div>
+    </div></div>;
+  }
+
+  function renderSite() {
+    return <form className="card settingsGroup" onSubmit={saveConfig}>
+      <h3>Сайт</h3>
+      <input value={site.siteName || ''} onChange={e=>setField('siteName', e.target.value)} placeholder="Название сайта" />
+      <label>Тема по умолчанию
+        <select value={site.siteTheme || 'default'} onChange={e=>setField('siteTheme', e.target.value)}>
+          <option value="default">Стартовая Yved</option>
+          <option value="dark">Тёмная</option>
+          <option value="light">Белая</option>
+        </select>
+      </label>
+      <label>Скругление кнопок<input type="range" min="4" max="28" value={Number(site.buttonRadius || 14)} onChange={e=>setField('buttonRadius', e.target.value)} /></label>
+      <label>Лого сайта<input type="file" accept="image/*" onChange={e=>setLogo(e.target.files[0])} /></label>
+      <label>Иконка вкладки<input type="file" accept="image/*" onChange={e=>setFavicon(e.target.files[0])} /></label>
+      <label className="checkLine"><input type="checkbox" checked={site.soundsEnabled === true || site.soundsEnabled === 'true'} onChange={e=>setField('soundsEnabled', e.target.checked)} /> Звуки</label>
+      <label className="checkLine"><input type="checkbox" checked={site.animationsEnabled === true || site.animationsEnabled === 'true'} onChange={e=>setField('animationsEnabled', e.target.checked)} /> Анимации по умолчанию</label>
+      <label className="checkLine"><input type="checkbox" checked={site.inviteEnabled === true || site.inviteEnabled === 'true'} onChange={e=>setField('inviteEnabled', e.target.checked)} /> Invite-доступ</label>
+      <button>Сохранить</button>
+    </form>;
+  }
+
+  function renderUsers() {
+    return <div className="devSection">
+      <form className="devSearch" onSubmit={searchUsers}>
+        <input value={userQuery} onChange={e=>setUserQuery(e.target.value)} placeholder="Поиск по @username, имени или email" />
+        <button>Найти</button>
+        <button type="button" className="ghost" onClick={()=>action(async()=>{ setUserQuery(''); setUsers(await api('/api/dev/users')); })}>Сброс</button>
       </form>
-
-
-      <div className="card settingsGroup">
-        <h3>Жалобы пользователей</h3>
-        <p className="safeText">Здесь видно кто пожаловался, на какой объект и на кого примерно была жалоба. Личные сообщения сюда не попадают автоматически.</p>
-        <div className="devList">
-          {reports.map(r => <div className="devItem reportItem" key={r.id}>
-            <span>
-              <b>#{r.id} {r.targetType} #{r.targetId}</b>
-              <small>Жалоба от: @{r.reporterUsername || 'unknown'} · {r.reporterEmail || 'email скрыт'}</small>
-              <small>На: @{r.targetAuthorUsername || 'unknown'} · {r.targetAuthorEmail || 'email неизвестен'}</small>
-              <small className="safeText">Причина: {r.reason || 'не указана'}</small>
-              {r.targetText && <small className="safeText">Фрагмент: {r.targetText}</small>}
-            </span>
-          </div>)}
-          {reports.length === 0 && <p className="safeText">Жалоб пока нет.</p>}
-        </div>
-      </div>
-
-      <div className="card settingsGroup">
-        <h3>Бот-модератор: запрещённые слова</h3>
-        <p className="safeText">Эти слова нельзя писать в публичных местах: посты, комментарии, описания видео и профиль. Личные сообщения и групповые сообщения бот не проверяет.</p>
-        <textarea value={forbiddenText} onChange={e=>setForbiddenText(e.target.value)} placeholder="Каждое слово с новой строки" />
-        <button type="button" onClick={()=>action(saveForbiddenWords)}>Сохранить запрещённые слова</button>
-        <div className="forbiddenWordList">{forbiddenWords.map(w => <span key={w.id}>{w.word}</span>)}</div>
-        <h4>Последние срабатывания</h4>
-        <div className="devList">
-          {moderationLogs.slice(0, 20).map(log => <div className="devItem" key={log.id}>
-            <span><b>{log.targetType}</b> @{log.authorName || 'unknown'}<small>{log.reason} · {log.text}</small></span>
-          </div>)}
-          {moderationLogs.length === 0 && <p className="safeText">Пока нет срабатываний.</p>}
-        </div>
-      </div>
-
-      <div className="card settingsGroup">
-        <h3>Сохранение контента</h3>
-        <p>Скачай резервную копию перед крупными обновлениями. Для постоянного хранения фото/видео можно подключить Cloudinary через переменные Render.</p>
-        <button onClick={() => action(downloadBackup)}>Скачать backup JSON</button>
-      </div>
-
-      <div className="card settingsGroup">
-        <h3>Настоящие стикеры для ЛС</h3>
-        <p>Загружай картинки-стикеры. Они появятся в панели “Стикеры” в личных сообщениях.</p>
-        <div className="row responsiveRow">
-          <input placeholder="Название стикера" value={stickerName} onChange={e=>setStickerName(e.target.value)} />
-          <label className="fileButton inlineFile">Картинка<input type="file" accept="image/*" onChange={e=>setStickerFile(e.target.files?.[0] || null)} /></label>
-          <button type="button" onClick={()=>action(uploadSticker)}>Добавить</button>
-        </div>
-        <div className="stickerAdminGrid">
-          {stickers.map(st => <div className={st.isHidden ? 'stickerAdminItem hidden' : 'stickerAdminItem'} key={st.id}>
-            <img src={fileUrl(st.imageUrl)} alt={st.name} />
-            <b>{st.name}</b>
-            <div className="row">
-              <button className="ghost" onClick={()=>action(()=>api(`/api/dev/stickers/${st.id}/${st.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{st.isHidden ? 'Вернуть' : 'Скрыть'}</button>
-              <button className="danger" onClick={()=>{ if(confirm('Удалить стикер?')) action(()=>api(`/api/dev/stickers/${st.id}`, { method:'DELETE' })); }}>Удалить</button>
-            </div>
-          </div>)}
-        </div>
-      </div>
-
-      <h3>Пользователи, аватарки и обложки</h3>
       <div className="userList">
         {users.map(u => <div className="userRow" key={u.id}>
-          <span>#{u.id} <b>{u.username}</b> {u.isBlocked ? '🚫' : ''} {u.isDev ? '🛠' : ''}<small>{u.email} · {u.isEmailVerified ? 'почта подтверждена' : 'почта не подтверждена'}</small></span>
+          <span>#{u.id} <b>{u.displayName || u.username}</b> <small>@{u.username} · {u.email} · {u.isEmailVerified ? 'почта подтверждена' : 'почта не подтверждена'} {u.isBlocked ? ' · заблокирован' : ''} {u.isDev ? ' · dev' : ''}</small></span>
           <div className="devActions">
             {u.avatar && <button className="ghost" onClick={()=>action(()=>api(`/api/dev/users/${u.id}/avatar/clear`, { method:'PUT' }))}>Убрать аватар</button>}
             {u.coverUrl && <button className="ghost" onClick={()=>action(()=>api(`/api/dev/users/${u.id}/cover/clear`, { method:'PUT' }))}>Убрать обложку</button>}
             <input className="devSmallInput" placeholder="Название бейджа" value={badgeTitles[u.id] || ''} onChange={e => setBadgeTitles(prev => ({ ...prev, [u.id]: e.target.value }))} />
             <label className="fileButton devBadgeButton">Бейдж<input type="file" accept="image/*" onChange={e => setBadgeFiles(prev => ({ ...prev, [u.id]: e.target.files?.[0] || null }))} /></label>
-            <button className="ghost" onClick={()=>action(()=>uploadBadge(u.id))}>Выдать бейдж</button>
+            <button className="ghost" onClick={()=>action(()=>uploadBadge(u.id))}>Выдать</button>
             <button onClick={()=>action(()=>api(`/api/dev/users/${u.id}/${u.isBlocked ? 'unblock':'block'}`, { method:'PUT' }))}>{u.isBlocked ? 'Разблокировать' : 'Заблокировать'}</button>
-            <button className="danger" onClick={()=>{ if(confirm(`Удалить аккаунт ${u.username} навсегда?`)) action(()=>api(`/api/dev/users/${u.id}`, { method:'DELETE' })); }}>Удалить аккаунт</button>
+            <button className="danger" onClick={()=>{ if(confirm(`Удалить аккаунт @${u.username}?`)) action(()=>api(`/api/dev/users/${u.id}`, { method:'DELETE' })); }}>Удалить</button>
           </div>
         </div>)}
       </div>
+    </div>;
+  }
 
-      <h3>Последние посты</h3>
+  function renderPosts() {
+    return <div className="devSection">
+      <form className="devSearch" onSubmit={searchPost}>
+        <input value={postIdQuery} onChange={e=>setPostIdQuery(e.target.value)} placeholder="ID поста" />
+        <button>Найти пост</button>
+        <button type="button" className="ghost" onClick={()=>action(async()=>{ setPostIdQuery(''); setPosts(await api('/api/dev/recent/posts')); })}>Последние</button>
+      </form>
       <div className="devList">{posts.map(p => <div className="devItem" key={p.id}>
         <span>#{p.id} @{p.authorName} {p.isHidden ? 'скрыт' : ''}<small className="safeText">{p.text || (p.imageUrls?.length ? `Фото: ${p.imageUrls.length}` : p.imageUrl)}</small></span>
         <div className="devActions">
           <button onClick={()=>action(()=>api(`/api/dev/posts/${p.id}/${p.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{p.isHidden ? 'Вернуть' : 'Скрыть'}</button>
-          <button className="danger" onClick={()=>{ if(confirm('Удалить пост навсегда?')) action(()=>api(`/api/dev/posts/${p.id}`, { method:'DELETE' })); }}>Удалить</button>
+          <button className="danger" onClick={()=>{ if(confirm('Удалить пост?')) action(()=>api(`/api/dev/posts/${p.id}`, { method:'DELETE' })); }}>Удалить</button>
         </div>
       </div>)}</div>
+    </div>;
+  }
 
-      <h3>Последние видео</h3>
-      <div className="devList">{videos.map(v => <div className="devItem" key={v.id}>
-        <span>#{v.id} @{v.authorName} {v.isHidden ? 'скрыто' : ''}<small className="safeText">{v.description || v.videoUrl}</small></span>
+  function renderVideos() {
+    return <div className="devSection"><div className="devList">{videos.map(v => <div className="devItem" key={v.id}>
+      <span>#{v.id} @{v.authorName} {v.isHidden ? 'скрыто' : ''}<small className="safeText">{v.description || v.videoUrl}</small></span>
+      <div className="devActions">
+        <button onClick={()=>action(()=>api(`/api/dev/videos/${v.id}/${v.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{v.isHidden ? 'Вернуть' : 'Скрыть'}</button>
+        <button className="danger" onClick={()=>{ if(confirm('Удалить видео?')) action(()=>api(`/api/dev/videos/${v.id}`, { method:'DELETE' })); }}>Удалить</button>
+      </div>
+    </div>)}</div></div>;
+  }
+
+  function renderReports() {
+    return <div className="devSection"><div className="devList">
+      {reports.map(r => <div className="devItem reportItem" key={r.id}>
+        <span>
+          <b>Жалоба #{r.id}</b>
+          <small>{r.targetType} ID: {r.targetId}</small>
+          <small>От: @{r.reporterUsername || 'unknown'} · {r.reporterEmail || 'email скрыт'}</small>
+          <small>На: @{r.targetAuthorUsername || 'unknown'} · {r.targetAuthorEmail || 'email неизвестен'}</small>
+          <small>Причина: {r.reason || 'не указана'}</small>
+          {r.targetText && <small className="safeText">Фрагмент: {r.targetText}</small>}
+        </span>
         <div className="devActions">
-          <button onClick={()=>action(()=>api(`/api/dev/videos/${v.id}/${v.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{v.isHidden ? 'Вернуть' : 'Скрыть'}</button>
-          <button className="danger" onClick={()=>{ if(confirm('Удалить видео навсегда?')) action(()=>api(`/api/dev/videos/${v.id}`, { method:'DELETE' })); }}>Удалить</button>
+          <button className="ghost" onClick={()=>action(()=>api(`/api/dev/reports/${r.id}/skip`, { method:'PUT' }))}>Пропустить</button>
+          <button className="danger" onClick={()=>{ if(confirm('Удалить объект жалобы?')) action(()=>api(`/api/dev/reports/${r.id}/delete-target`, { method:'DELETE' })); }}>Удалить</button>
         </div>
-      </div>)}</div>
+      </div>)}
+      {reports.length === 0 && <p className="safeText">Жалоб нет.</p>}
+    </div></div>;
+  }
 
-      <button className="danger" onClick={onExitDev}>Выйти из режима разработчика</button>
+  function renderModeration() {
+    return <div className="devSection">
+      <div className="card settingsGroup">
+        <h3>Запрещённые слова</h3>
+        <textarea value={forbiddenText} onChange={e=>setForbiddenText(e.target.value)} placeholder="Каждое слово с новой строки" />
+        <button type="button" onClick={()=>action(saveForbiddenWords)}>Сохранить</button>
+        <div className="forbiddenWordList">{forbiddenWords.map(w => <span key={w.id}>{w.word}</span>)}</div>
+      </div>
+      <div className="card settingsGroup">
+        <h3>Логи</h3>
+        <div className="devList">{moderationLogs.slice(0, 30).map(log => <div className="devItem" key={log.id}>
+          <span><b>{log.targetType}</b> @{log.authorName || 'unknown'}<small>{log.reason} · {log.text || log.textPreview}</small></span>
+        </div>)}</div>
+      </div>
+    </div>;
+  }
+
+  function renderStickers() {
+    return <div className="devSection"><div className="card settingsGroup">
+      <h3>Стикеры</h3>
+      <div className="row responsiveRow">
+        <input placeholder="Название" value={stickerName} onChange={e=>setStickerName(e.target.value)} />
+        <label className="fileButton inlineFile">Картинка<input type="file" accept="image/*" onChange={e=>setStickerFile(e.target.files?.[0] || null)} /></label>
+        <button type="button" onClick={()=>action(uploadSticker)}>Добавить</button>
+      </div>
+      <div className="stickerAdminGrid">
+        {stickers.map(st => <div className={st.isHidden ? 'stickerAdminItem hidden' : 'stickerAdminItem'} key={st.id}>
+          <img src={fileUrl(st.imageUrl)} alt={st.name} />
+          <b>{st.name}</b>
+          <div className="row">
+            <button className="ghost" onClick={()=>action(()=>api(`/api/dev/stickers/${st.id}/${st.isHidden ? 'restore':'hide'}`, { method:'PUT' }))}>{st.isHidden ? 'Вернуть' : 'Скрыть'}</button>
+            <button className="danger" onClick={()=>{ if(confirm('Удалить стикер?')) action(()=>api(`/api/dev/stickers/${st.id}`, { method:'DELETE' })); }}>Удалить</button>
+          </div>
+        </div>)}
+      </div>
+    </div></div>;
+  }
+
+  function renderBackup() {
+    return <div className="devSection"><div className="card settingsGroup">
+      <h3>Backup</h3>
+      <button onClick={() => action(downloadBackup)}>Скачать JSON</button>
+    </div></div>;
+  }
+
+  const view = {
+    dashboard: renderDashboard,
+    site: renderSite,
+    users: renderUsers,
+    posts: renderPosts,
+    videos: renderVideos,
+    reports: renderReports,
+    moderation: renderModeration,
+    stickers: renderStickers,
+    backup: renderBackup
+  }[section] || renderDashboard;
+
+  return <div className="modalBackdrop">
+    <div className="modal big devPanel devPanelWindow">
+      <div className="row between devPanelTop"><h2>Dev Yved</h2><button onClick={onClose}>Закрыть</button></div>
+      {error && <p className="error">{error}</p>}
+      <div className="devTabs">{sections.map(([id, title]) => <button key={id} className={section === id ? 'active' : 'ghost'} onClick={() => setSection(id)}>{title}</button>)}</div>
+      {view()}
+      <button className="danger devExitButton" onClick={onExitDev}>Выйти из режима разработчика</button>
     </div>
   </div>;
 }
