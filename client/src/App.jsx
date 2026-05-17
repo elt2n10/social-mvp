@@ -14,6 +14,7 @@ const defaultConfig = {
   siteName: 'Yved',
   logoUrl: '',
   faviconUrl: '/favicon.svg',
+  siteTheme: 'default',
   accentColor: '#7c3cff',
   secondColor: '#2aa7ff',
   backgroundColor: '#090a10',
@@ -30,26 +31,62 @@ const defaultConfig = {
   inviteEnabled: false
 };
 
+const THEME_PRESETS = {
+  default: {
+    accentColor: '#7c3cff', secondColor: '#2aa7ff', backgroundColor: '#090a10', cardColor: '#11131d',
+    textColor: '#f2f3ff', mutedColor: '#8e94ad', borderColor: '#25293d', sidebarColor: '#0d0f18',
+    inputColor: '#11131d', dangerColor: '#d83d5a'
+  },
+  dark: {
+    accentColor: '#7c3cff', secondColor: '#7c3cff', backgroundColor: '#050509', cardColor: '#0f1117',
+    textColor: '#f5f5f7', mutedColor: '#9ca3af', borderColor: '#252936', sidebarColor: '#080a0f',
+    inputColor: '#10131b', dangerColor: '#ef4444'
+  },
+  light: {
+    accentColor: '#6d28d9', secondColor: '#2563eb', backgroundColor: '#f4f5fb', cardColor: '#ffffff',
+    textColor: '#111827', mutedColor: '#667085', borderColor: '#d8dbe8', sidebarColor: '#ffffff',
+    inputColor: '#ffffff', dangerColor: '#dc2626'
+  }
+};
+
+function getEffectiveConfig(config) {
+  const userTheme = localStorage.getItem('yvedTheme') || 'default';
+  const siteTheme = config.siteTheme || 'default';
+  const presetName = userTheme === 'default' ? siteTheme : userTheme;
+  const preset = THEME_PRESETS[presetName] || THEME_PRESETS.default;
+  const animationsPref = localStorage.getItem('yvedAnimations');
+  const localAnimations = animationsPref === null ? undefined : animationsPref === 'true';
+
+  return {
+    ...config,
+    ...preset,
+    animationsEnabled: localAnimations ?? (config.animationsEnabled !== false && config.animationsEnabled !== 'false'),
+    soundsEnabled: config.soundsEnabled !== false && config.soundsEnabled !== 'false'
+  };
+}
+
 function applyConfig(config) {
+  const effective = getEffectiveConfig({ ...defaultConfig, ...config });
   const root = document.documentElement;
-  root.style.setProperty('--accent', config.accentColor || defaultConfig.accentColor);
-  root.style.setProperty('--accent2', config.secondColor || defaultConfig.secondColor);
-  root.style.setProperty('--bg', config.backgroundColor || defaultConfig.backgroundColor);
-  root.style.setProperty('--card', config.cardColor || defaultConfig.cardColor);
-  root.style.setProperty('--text', config.textColor || defaultConfig.textColor);
-  root.style.setProperty('--muted', config.mutedColor || defaultConfig.mutedColor);
-  root.style.setProperty('--border', config.borderColor || defaultConfig.borderColor);
-  root.style.setProperty('--sidebar', config.sidebarColor || defaultConfig.sidebarColor);
-  root.style.setProperty('--input', config.inputColor || defaultConfig.inputColor);
-  root.style.setProperty('--danger', config.dangerColor || defaultConfig.dangerColor);
-  root.style.setProperty('--radius', `${config.buttonRadius || 14}px`);
-  document.body.classList.toggle('noAnimations', !config.animationsEnabled);
+  root.style.setProperty('--accent', effective.accentColor || defaultConfig.accentColor);
+  root.style.setProperty('--accent2', effective.secondColor || defaultConfig.secondColor);
+  root.style.setProperty('--bg', effective.backgroundColor || defaultConfig.backgroundColor);
+  root.style.setProperty('--card', effective.cardColor || defaultConfig.cardColor);
+  root.style.setProperty('--text', effective.textColor || defaultConfig.textColor);
+  root.style.setProperty('--muted', effective.mutedColor || defaultConfig.mutedColor);
+  root.style.setProperty('--border', effective.borderColor || defaultConfig.borderColor);
+  root.style.setProperty('--sidebar', effective.sidebarColor || defaultConfig.sidebarColor);
+  root.style.setProperty('--input', effective.inputColor || defaultConfig.inputColor);
+  root.style.setProperty('--danger', effective.dangerColor || defaultConfig.dangerColor);
+  root.style.setProperty('--radius', `${effective.buttonRadius || 14}px`);
+  document.body.classList.toggle('noAnimations', !effective.animationsEnabled);
+  document.body.dataset.theme = localStorage.getItem('yvedTheme') || 'default';
   const favicon = document.querySelector("link[rel='icon']") || document.createElement('link');
   favicon.rel = 'icon';
   favicon.type = 'image/png';
-  favicon.href = fileUrl(config.faviconUrl || '/favicon.png');
+  favicon.href = fileUrl(effective.faviconUrl || '/favicon.png');
   document.head.appendChild(favicon);
-  document.title = config.siteName || 'Yved';
+  document.title = effective.siteName || 'Yved';
 }
 
 export default function App() {

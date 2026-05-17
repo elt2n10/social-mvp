@@ -15,6 +15,9 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
   const [stickers, setStickers] = useState([]);
   const [stickerName, setStickerName] = useState('');
   const [stickerFile, setStickerFile] = useState(null);
+  const [forbiddenWords, setForbiddenWords] = useState([]);
+  const [forbiddenText, setForbiddenText] = useState('');
+  const [moderationLogs, setModerationLogs] = useState([]);
 
   async function load() {
     try {
@@ -24,6 +27,10 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
       setPosts(await api('/api/dev/recent/posts'));
       setVideos(await api('/api/dev/recent/videos'));
       setStickers(await api('/api/dev/stickers'));
+      const words = await api('/api/dev/moderation/words').catch(() => []);
+      setForbiddenWords(words);
+      setForbiddenText(words.map(w => w.word).join('\n'));
+      setModerationLogs(await api('/api/dev/moderation/logs').catch(() => []));
       const cfg = await api('/api/dev/config');
       setSite(cfg); onConfig?.(cfg);
     } catch (e) { setError(e.message); }
@@ -37,7 +44,7 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
   async function saveConfig(e) {
     e.preventDefault();
     const fd = new FormData();
-    ['siteName','accentColor','secondColor','backgroundColor','cardColor','textColor','mutedColor','borderColor','sidebarColor','inputColor','dangerColor','buttonRadius','soundsEnabled','animationsEnabled','inviteEnabled','stickers'].forEach(k => fd.append(k, site[k] ?? ''));
+    ['siteName','siteTheme','buttonRadius','soundsEnabled','animationsEnabled','inviteEnabled','stickers'].forEach(k => fd.append(k, site[k] ?? ''));
     if (logo) fd.append('logo', logo);
     if (favicon) fd.append('favicon', favicon);
     const updated = await api('/api/dev/config', { method:'PUT', body: fd });
@@ -94,6 +101,13 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
     setStickerFile(null);
   }
 
+  async function saveForbiddenWords() {
+    const words = forbiddenText.split(/[\n,]/g).map(w => w.trim()).filter(Boolean);
+    const updated = await api('/api/dev/moderation/words', { method: 'PUT', body: JSON.stringify({ words }) });
+    setForbiddenWords(updated);
+    setForbiddenText(updated.map(w => w.word).join('\n'));
+  }
+
   return <div className="modalBackdrop">
     <div className="modal big devPanel">
       <div className="row between"><h2>Панель разработчика Yved</h2><button onClick={onClose}>Закрыть</button></div>
@@ -111,29 +125,37 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
       <form className="card settingsGroup" onSubmit={saveConfig}>
         <h3>Изменить сайт без нового кода</h3>
         <input value={site.siteName || ''} onChange={e=>setField('siteName', e.target.value)} placeholder="Название сайта" />
-        <p className="safeText">Эти цвета применяются для всех пользователей, у кого в настройках стоит режим “по умолчанию”.</p>
-        <div className="colorGrid wideColorGrid">
-          <label>Акцент<input type="color" value={site.accentColor || '#7c3cff'} onChange={e=>setField('accentColor', e.target.value)} /></label>
-          <label>Второй цвет<input type="color" value={site.secondColor || '#2aa7ff'} onChange={e=>setField('secondColor', e.target.value)} /></label>
-          <label>Фон<input type="color" value={site.backgroundColor || '#090a10'} onChange={e=>setField('backgroundColor', e.target.value)} /></label>
-          <label>Карточки<input type="color" value={site.cardColor || '#11131d'} onChange={e=>setField('cardColor', e.target.value)} /></label>
-          <label>Левое меню<input type="color" value={site.sidebarColor || '#0d0f18'} onChange={e=>setField('sidebarColor', e.target.value)} /></label>
-          <label>Поля ввода<input type="color" value={site.inputColor || '#11131d'} onChange={e=>setField('inputColor', e.target.value)} /></label>
-          <label>Основной текст<input type="color" value={site.textColor || '#f2f3ff'} onChange={e=>setField('textColor', e.target.value)} /></label>
-          <label>Вторичный текст<input type="color" value={site.mutedColor || '#8e94ad'} onChange={e=>setField('mutedColor', e.target.value)} /></label>
-          <label>Обводки<input type="color" value={site.borderColor || '#25293d'} onChange={e=>setField('borderColor', e.target.value)} /></label>
-          <label>Опасные кнопки<input type="color" value={site.dangerColor || '#d83d5a'} onChange={e=>setField('dangerColor', e.target.value)} /></label>
-        </div>
+        <p className="safeText">Глобальная тема применяется для всех, у кого в настройках выбрано “По умолчанию”.</p>
+        <label>Тема сайта по умолчанию
+          <select value={site.siteTheme || 'default'} onChange={e=>setField('siteTheme', e.target.value)}>
+            <option value="default">Стартовая Yved</option>
+            <option value="dark">Тёмная</option>
+            <option value="light">Белая</option>
+          </select>
+        </label>
         <label>Скругление кнопок<input type="range" min="4" max="28" value={Number(site.buttonRadius || 14)} onChange={e=>setField('buttonRadius', e.target.value)} /></label>
-        <button type="button" className="ghost" onClick={resetSiteColors}>Вернуть цвета по умолчанию</button>
         <label>Лого сайта<input type="file" accept="image/*" onChange={e=>setLogo(e.target.files[0])} /></label>
         <label>Иконка вкладки<input type="file" accept="image/*" onChange={e=>setFavicon(e.target.files[0])} /></label>
         <label className="checkLine"><input type="checkbox" checked={site.soundsEnabled === true || site.soundsEnabled === 'true'} onChange={e=>setField('soundsEnabled', e.target.checked)} /> Звуки</label>
-        <label className="checkLine"><input type="checkbox" checked={site.animationsEnabled === true || site.animationsEnabled === 'true'} onChange={e=>setField('animationsEnabled', e.target.checked)} /> Анимации</label>
+        <label className="checkLine"><input type="checkbox" checked={site.animationsEnabled === true || site.animationsEnabled === 'true'} onChange={e=>setField('animationsEnabled', e.target.checked)} /> Анимации по умолчанию</label>
         <label className="checkLine"><input type="checkbox" checked={site.inviteEnabled === true || site.inviteEnabled === 'true'} onChange={e=>setField('inviteEnabled', e.target.checked)} /> Закрыть сайт invite-ссылкой</label>
-        <label>Стикеры для ЛС<textarea value={site.stickers || ''} onChange={e=>setField('stickers', e.target.value)} placeholder="😀,😂,😎,🔥,💜" /></label>
         <button>Сохранить настройки сайта</button>
       </form>
+
+      <div className="card settingsGroup">
+        <h3>Бот-модератор: запрещённые слова</h3>
+        <p className="safeText">Эти слова нельзя писать в публичных местах: посты, комментарии, описания видео и профиль. Личные сообщения и групповые сообщения бот не проверяет.</p>
+        <textarea value={forbiddenText} onChange={e=>setForbiddenText(e.target.value)} placeholder="Каждое слово с новой строки" />
+        <button type="button" onClick={()=>action(saveForbiddenWords)}>Сохранить запрещённые слова</button>
+        <div className="forbiddenWordList">{forbiddenWords.map(w => <span key={w.id}>{w.word}</span>)}</div>
+        <h4>Последние срабатывания</h4>
+        <div className="devList">
+          {moderationLogs.slice(0, 20).map(log => <div className="devItem" key={log.id}>
+            <span><b>{log.targetType}</b> @{log.authorName || 'unknown'}<small>{log.reason} · {log.text}</small></span>
+          </div>)}
+          {moderationLogs.length === 0 && <p className="safeText">Пока нет срабатываний.</p>}
+        </div>
+      </div>
 
       <div className="card settingsGroup">
         <h3>Сохранение контента</h3>

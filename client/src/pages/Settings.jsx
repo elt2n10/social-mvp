@@ -1,18 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api, clearToken } from '../api/api';
 
-const DEFAULT_THEME = {
-  useDefaultTheme: true,
-  accentColor: '',
-  secondColor: '',
-  backgroundColor: '',
-  cardColor: '',
-  textColor: '',
-  mutedColor: '',
-  borderColor: '',
-  sidebarColor: '',
-  inputColor: '',
-  dangerColor: ''
+const THEME_LABELS = {
+  default: 'По умолчанию',
+  dark: 'Тёмная',
+  light: 'Белая'
 };
 
 export default function Settings({ onLogout, onDevSecret, devUnlocked, onOpenDevPanel, onExitDev, config, setConfig }) {
@@ -20,25 +12,8 @@ export default function Settings({ onLogout, onDevSecret, devUnlocked, onOpenDev
   const [newPassword, setNewPassword] = useState('');
   const [msg, setMsg] = useState('');
   const [tapCount, setTapCount] = useState(0);
-  const [localTheme, setLocalTheme] = useState(() => ({
-    ...DEFAULT_THEME,
-    ...JSON.parse(localStorage.getItem('localTheme') || '{}')
-  }));
-
-  const isDefaultTheme = localTheme.useDefaultTheme !== false;
-
-  const colorFields = useMemo(() => ([
-    ['accentColor', 'Акцентный цвет', '#7c3cff'],
-    ['secondColor', 'Второй цвет', '#2aa7ff'],
-    ['backgroundColor', 'Фон сайта', '#090a10'],
-    ['cardColor', 'Карточки', '#11131d'],
-    ['sidebarColor', 'Левое меню', '#0d0f18'],
-    ['inputColor', 'Поля ввода', '#11131d'],
-    ['textColor', 'Основной текст', '#f2f3ff'],
-    ['mutedColor', 'Вторичный текст', '#8e94ad'],
-    ['borderColor', 'Обводки', '#25293d'],
-    ['dangerColor', 'Опасные кнопки', '#d83d5a']
-  ]), []);
+  const [theme, setTheme] = useState(localStorage.getItem('yvedTheme') || 'default');
+  const [animationsEnabled, setAnimationsEnabled] = useState(localStorage.getItem('yvedAnimations') !== 'false');
 
   useEffect(() => {
     const reset = setTimeout(() => setTapCount(0), 2200);
@@ -46,32 +21,25 @@ export default function Settings({ onLogout, onDevSecret, devUnlocked, onOpenDev
     return () => clearTimeout(reset);
   }, [tapCount, onDevSecret]);
 
-  function saveLocalTheme(next) {
-    setLocalTheme(next);
-    localStorage.setItem('localTheme', JSON.stringify(next));
-    if (next.useDefaultTheme === false) {
-      const custom = Object.fromEntries(Object.entries(next).filter(([k, v]) => k !== 'useDefaultTheme' && v));
-      setConfig(custom);
-    } else {
-      setConfig(config);
-    }
-  }
-
-  function updateLocal(key, value) {
-    saveLocalTheme({ ...localTheme, useDefaultTheme: false, [key]: value });
-  }
-
-  function resetTheme() {
-    localStorage.removeItem('localTheme');
-    setLocalTheme(DEFAULT_THEME);
+  function changeTheme(next) {
+    setTheme(next);
+    localStorage.setItem('yvedTheme', next);
     setConfig({ ...config });
-    setMsg('Цвета вернулись к настройкам сайта по умолчанию');
+    setMsg(`Тема: ${THEME_LABELS[next] || 'По умолчанию'}`);
+  }
+
+  function toggleAnimations(checked) {
+    setAnimationsEnabled(checked);
+    localStorage.setItem('yvedAnimations', String(checked));
+    setConfig({ ...config, animationsEnabled: checked });
+    setMsg(checked ? 'Анимации включены' : 'Анимации выключены');
   }
 
   async function changePassword(e){
     e.preventDefault(); setMsg('');
     try { await api('/api/auth/password', { method:'PUT', body: JSON.stringify({ oldPassword, newPassword }) }); setMsg('Пароль изменён'); setOldPassword(''); setNewPassword(''); } catch(e){ setMsg(e.message); }
   }
+
   async function deleteAccount(){
     if(!confirm('Точно удалить аккаунт?')) return;
     await api('/api/auth/me', { method:'DELETE' }); clearToken(); onLogout();
@@ -96,22 +64,20 @@ export default function Settings({ onLogout, onDevSecret, devUnlocked, onOpenDev
         <input type="password" placeholder="Новый пароль" value={newPassword} onChange={e=>setNewPassword(e.target.value)}/>
         <button>Изменить</button>
       </form>
+
       <div className="settingsGroup">
-        <h3>Кастомизация интерфейса</h3>
-        <p className="safeText">Если включено “по умолчанию”, цвета берутся из dev-панели и меняются сразу для всех пользователей с режимом по умолчанию.</p>
-        <label className="checkLine"><input type="checkbox" checked={isDefaultTheme} onChange={e => e.target.checked ? resetTheme() : saveLocalTheme({ ...localTheme, useDefaultTheme: false })}/> Использовать цвета сайта по умолчанию</label>
-        <div className="colorGrid wideColorGrid">
-          {colorFields.map(([key, label, fallback]) => (
-            <label key={key}>{label}<input disabled={isDefaultTheme} type="color" value={localTheme[key] || config[key] || fallback} onChange={e=>updateLocal(key, e.target.value)} /></label>
+        <h3>Интерфейс</h3>
+        <p className="safeText">Оставили только 3 темы. “По умолчанию” берёт тему, которую разработчик выбрал в dev-панели.</p>
+        <div className="themeChoiceGrid">
+          {Object.entries(THEME_LABELS).map(([key, label]) => (
+            <button type="button" key={key} className={theme === key ? 'active' : 'ghost'} onClick={() => changeTheme(key)}>{label}</button>
           ))}
         </div>
-        <div className="row responsiveRow">
-          <button type="button" className="ghost" onClick={resetTheme}>По умолчанию</button>
-        </div>
-        <label className="checkLine"><input type="checkbox" checked={config.soundsEnabled !== false} onChange={e=>setConfig({ soundsEnabled: e.target.checked })}/> Звуки кнопок</label>
-        <label className="checkLine"><input type="checkbox" checked={config.animationsEnabled !== false} onChange={e=>setConfig({ animationsEnabled: e.target.checked })}/> Анимации</label>
+        <button type="button" className="ghost" onClick={() => changeTheme('default')}>Вернуть по умолчанию</button>
+        <label className="checkLine"><input type="checkbox" checked={animationsEnabled} onChange={e=>toggleAnimations(e.target.checked)}/> Анимации</label>
       </div>
-      <div className="settingsGroup"><h3>Безопасность</h3><p>Регистрация защищена капчей и подтверждением почты. Если аккаунт заблокируют, посты, сообщения и загрузка видео будут недоступны.</p></div>
+
+      <div className="settingsGroup"><h3>Безопасность</h3><p>Регистрация защищена капчей и подтверждением почты. ЛС не читаются ботом-модератором.</p></div>
       <button className="danger" onClick={deleteAccount}>Удалить аккаунт</button>
       <button className="secretDot" title="" aria-label="" onClick={() => setTapCount(v => v + 1)} type="button" />
     </div>

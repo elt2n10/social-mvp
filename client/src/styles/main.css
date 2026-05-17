@@ -198,3 +198,8 @@ body{color:var(--text)!important;background:var(--bg)!important}.sidebar{backgro
   body.videoMode .tiktokCard{height:min(780px,calc(100vh - 96px))!important}
   .tiktokComments.open{max-height:380px!important}
 }
+
+
+select{width:100%;max-width:100%;border:1px solid var(--border);background:var(--input);color:var(--text);border-radius:var(--radius);padding:12px;outline:none}
+.themeChoiceGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.themeChoiceGrid button{min-height:44px}.forbiddenWordList{display:flex;flex-wrap:wrap;gap:8px}.forbiddenWordList span{padding:7px 10px;border-radius:999px;background:#1b1e2d;border:1px solid var(--border);font-size:13px}.noAnimations,.noAnimations *,.noAnimations *::before,.noAnimations *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.noAnimations button:hover,.noAnimations .clickable:hover,.noAnimations .pop,.noAnimations .pageFade{transform:none!important;filter:none!important}.noAnimations .videoComments,.noAnimations .modal{backdrop-filter:none!important}
+@media(max-width:650px){.themeChoiceGrid{grid-template-columns:1fr}}
