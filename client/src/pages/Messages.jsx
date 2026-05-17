@@ -106,7 +106,7 @@ export default function Messages({ me, openProfile, config }) {
     await sendMessage(msg);
   }
 
-  const list = q ? users.map(u => ({ ...u, type: 'user', name: u.username })) : dialogs;
+  const list = q ? users.map(u => ({ ...u, type: 'user', name: u.displayName || u.username })) : dialogs;
 
   return <section>
     <div className="row between pageHeader">
@@ -137,7 +137,7 @@ export default function Messages({ me, openProfile, config }) {
           else setActive({ ...u, type: u.type || 'user', name: u.name || u.username });
         }}>
           {u.avatar ? <img className="avatarImage tiny" src={fileUrl(u.avatar)} /> : <span className="avatar tiny" style={{ background: u.type === 'group' ? (u.color || undefined) : undefined }}>{u.type === 'group' ? 'G' : u.username?.[0]}</span>}
-          <span><b>{u.type === 'group' ? u.name : u.username}</b><small>{u.type === 'group' ? `${u.lastMessage || 'Группа'} · ${u.memberCount || ''}` : (u.lastMessage || u.description || 'Начать диалог')}</small></span>
+          <span><b>{u.type === 'group' ? u.name : (u.displayName || u.name || u.username)}</b><small>{u.type === 'group' ? `${u.lastMessage || 'Группа'} · ${u.memberCount || ''}` : `${makeHandle(u.username)} · ${u.lastMessage || u.description || 'Начать диалог'}`}</small></span>
         </button>)}
       </aside>
       <div className="chat">
@@ -145,7 +145,7 @@ export default function Messages({ me, openProfile, config }) {
           <div className="chatHeader">
             <button className="cleanButton row" onClick={()=> active.type === 'user' && openProfile?.(active.id)}>
               {active.avatar ? <img className="avatarImage small" src={fileUrl(active.avatar)} /> : <span className="avatar small" style={{ background: active.type === 'group' ? (active.color || undefined) : undefined }}>{active.type === 'group' ? 'G' : active.username?.[0]}</span>}
-              <span className="nameStack"><b>{active.type === 'group' ? active.name : `Чат с ${active.username}`}</b>{active.type === 'user' && <small>{makeHandle(active.username)}</small>}</span>
+              <span className="nameStack"><b>{active.type === 'group' ? active.name : `Чат с ${active.displayName || active.name || active.username}`}</b>{active.type === 'user' && <small>{makeHandle(active.username)}</small>}</span>
             </button>
           </div>
           <div ref={bodyRef} className="chatBody noFlickerChat">

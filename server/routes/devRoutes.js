@@ -198,6 +198,48 @@ router.get('/moderation/logs', auth, devOnly, (req, res) => {
   res.json(rows);
 });
 
+
+router.get('/reports', auth, devOnly, (req, res) => {
+  const reports = db.prepare(`
+    SELECT r.*, reporter.username reporterUsername, reporter.displayName reporterDisplayName, reporter.email reporterEmail
+    FROM reports r
+    LEFT JOIN users reporter ON reporter.id = r.fromUserId
+    ORDER BY r.id DESC LIMIT 200
+  `).all();
+
+  const mapTarget = (r) => {
+    let targetAuthor = null;
+    let targetText = '';
+    try {
+      if (r.targetType === 'post') {
+        const row = db.prepare(`SELECT p.text, u.username, u.displayName, u.email FROM posts p LEFT JOIN users u ON u.id = p.authorId WHERE p.id = ?`).get(r.targetId);
+        if (row) { targetAuthor = row; targetText = row.text || ''; }
+      } else if (r.targetType === 'video') {
+        const row = db.prepare(`SELECT v.description text, u.username, u.displayName, u.email FROM videos v LEFT JOIN users u ON u.id = v.authorId WHERE v.id = ?`).get(r.targetId);
+        if (row) { targetAuthor = row; targetText = row.text || ''; }
+      } else if (r.targetType === 'profile') {
+        const row = db.prepare(`SELECT description text, username, displayName, email FROM users WHERE id = ?`).get(r.targetId);
+        if (row) { targetAuthor = row; targetText = row.text || ''; }
+      } else if (r.targetType === 'comment') {
+        const row = db.prepare(`SELECT c.text, u.username, u.displayName, u.email FROM comments c LEFT JOIN users u ON u.id = c.authorId WHERE c.id = ?`).get(r.targetId);
+        if (row) { targetAuthor = row; targetText = row.text || ''; }
+      } else if (r.targetType === 'video_comment') {
+        const row = db.prepare(`SELECT vc.text, u.username, u.displayName, u.email FROM video_comments vc LEFT JOIN users u ON u.id = vc.authorId WHERE vc.id = ?`).get(r.targetId);
+        if (row) { targetAuthor = row; targetText = row.text || ''; }
+      }
+    } catch {}
+    return {
+      ...r,
+      targetText: String(targetText || '').slice(0, 260),
+      targetAuthorUsername: targetAuthor?.username || '',
+      targetAuthorDisplayName: targetAuthor?.displayName || '',
+      targetAuthorEmail: targetAuthor?.email || ''
+    };
+  };
+
+  res.json(reports.map(mapTarget));
+});
+
 router.get('/backup', auth, devOnly, (req, res) => {
   const backup = {
     exportedAt: new Date().toISOString(),
@@ -214,6 +256,7 @@ router.get('/backup', auth, devOnly, (req, res) => {
     stickers: db.prepare('SELECT * FROM stickers').all(),
     forbidden_words: db.prepare('SELECT * FROM forbidden_words').all(),
     moderation_logs: db.prepare('SELECT * FROM moderation_logs').all(),
+    reports: db.prepare('SELECT * FROM reports').all(),
     site_config: db.prepare('SELECT * FROM site_config').all()
   };
   res.json(backup);

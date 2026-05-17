@@ -18,6 +18,7 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
   const [forbiddenWords, setForbiddenWords] = useState([]);
   const [forbiddenText, setForbiddenText] = useState('');
   const [moderationLogs, setModerationLogs] = useState([]);
+  const [reports, setReports] = useState([]);
 
   async function load() {
     try {
@@ -31,6 +32,7 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
       setForbiddenWords(words);
       setForbiddenText(words.map(w => w.word).join('\n'));
       setModerationLogs(await api('/api/dev/moderation/logs').catch(() => []));
+      setReports(await api('/api/dev/reports').catch(() => []));
       const cfg = await api('/api/dev/config');
       setSite(cfg); onConfig?.(cfg);
     } catch (e) { setError(e.message); }
@@ -141,6 +143,24 @@ export default function DevPanel({ open, onClose, onExitDev, config, onConfig })
         <label className="checkLine"><input type="checkbox" checked={site.inviteEnabled === true || site.inviteEnabled === 'true'} onChange={e=>setField('inviteEnabled', e.target.checked)} /> Закрыть сайт invite-ссылкой</label>
         <button>Сохранить настройки сайта</button>
       </form>
+
+
+      <div className="card settingsGroup">
+        <h3>Жалобы пользователей</h3>
+        <p className="safeText">Здесь видно кто пожаловался, на какой объект и на кого примерно была жалоба. Личные сообщения сюда не попадают автоматически.</p>
+        <div className="devList">
+          {reports.map(r => <div className="devItem reportItem" key={r.id}>
+            <span>
+              <b>#{r.id} {r.targetType} #{r.targetId}</b>
+              <small>Жалоба от: @{r.reporterUsername || 'unknown'} · {r.reporterEmail || 'email скрыт'}</small>
+              <small>На: @{r.targetAuthorUsername || 'unknown'} · {r.targetAuthorEmail || 'email неизвестен'}</small>
+              <small className="safeText">Причина: {r.reason || 'не указана'}</small>
+              {r.targetText && <small className="safeText">Фрагмент: {r.targetText}</small>}
+            </span>
+          </div>)}
+          {reports.length === 0 && <p className="safeText">Жалоб пока нет.</p>}
+        </div>
+      </div>
 
       <div className="card settingsGroup">
         <h3>Бот-модератор: запрещённые слова</h3>

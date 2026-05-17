@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
+import ReportButton from '../components/ReportButton';
 
 const LIMIT = 12;
 
@@ -124,6 +125,7 @@ export default function Videos({ openProfile }) {
           <button className={v.likedByMe ? 'liked roundAction' : 'roundAction'} onClick={()=>like(v.id)}>♥<small>{v.likes}</small></button>
           <button className="roundAction ghost" onClick={()=>setOpenComments(openComments === v.id ? null : v.id)}>💬<small>{v.comments?.length || 0}</small></button>
           <button className="roundAction ghost" onClick={toggleSound}>{soundOn ? '🔊' : '🔇'}</button>
+          <ReportButton targetType="video" targetId={v.id} className="roundAction ghost" />
         </div>
         {openComments === v.id && <div className="comments videoComments tiktokComments open">
           <div className="videoCommentsHandle" />

@@ -43,8 +43,8 @@ const THEME_PRESETS = {
     inputColor: '#10131b', dangerColor: '#ef4444'
   },
   light: {
-    accentColor: '#6d28d9', secondColor: '#2563eb', backgroundColor: '#f4f5fb', cardColor: '#ffffff',
-    textColor: '#111827', mutedColor: '#667085', borderColor: '#d8dbe8', sidebarColor: '#ffffff',
+    accentColor: '#6d28d9', secondColor: '#7c3aed', backgroundColor: '#eef0f7', cardColor: '#f9fafc',
+    textColor: '#111827', mutedColor: '#5b6475', borderColor: '#cfd4e4', sidebarColor: '#f4f6fb',
     inputColor: '#ffffff', dangerColor: '#dc2626'
   }
 };

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
 import Lightbox from '../components/Lightbox';
+import ReportButton from '../components/ReportButton';
 import { MAX_POST_CHARS, MAX_POST_IMAGES, preparePostImages, validateVideoFile } from '../utils/media';
 
 function PostImages({ images = [], onOpen }) {
@@ -15,6 +16,7 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
   const [posts, setPosts] = useState([]);
   const [videos, setVideos] = useState([]);
   const [edit, setEdit] = useState(false);
+  const [displayName, setDisplayName] = useState(user.displayName || user.username);
   const [username, setUsername] = useState(user.username);
   const [description, setDescription] = useState(user.description || '');
   const [profileColor, setProfileColor] = useState(user.profileColor || '');
@@ -34,7 +36,7 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
   async function load(){
     const p = await api(`/api/profile/${profileId}`);
     setProfile(p);
-    setUsername(p.username); setDescription(p.description || ''); setProfileColor(p.profileColor || '');
+    setDisplayName(p.displayName || p.username); setUsername(p.username); setDescription(p.description || ''); setProfileColor(p.profileColor || '');
     setPosts(await api(`/api/posts/user/${profileId}`));
     setVideos(await api(`/api/videos/user/${profileId}`));
   }
@@ -43,7 +45,7 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
   async function save(e){
     e.preventDefault();
     const fd = new FormData();
-    fd.append('username', username); fd.append('description', description); fd.append('profileColor', profileColor);
+    fd.append('displayName', displayName); fd.append('username', username.replace(/^@+/, '').toLowerCase()); fd.append('description', description); fd.append('profileColor', profileColor);
     if(avatar) fd.append('avatar', avatar); if(cover) fd.append('cover', cover);
     const updated = await api('/api/profile/me', { method:'PUT', body: fd });
     setUser(updated); setProfile(updated); setEdit(false);
@@ -138,7 +140,7 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
   </section>;
 
   return <section>
-    <h1>{isMe ? 'Профиль' : `Профиль ${profile.username}`}</h1>
+    <h1>{isMe ? 'Профиль' : `Профиль ${profile.displayName || profile.username}`}</h1>
     {error && <p className="error">{error}</p>}
     <div className="card profileTop profileCard" style={{ borderColor: profile.profileColor || undefined }}>
       <div className="cover clickablePhoto" onClick={() => profile.coverUrl && setLightbox({ images: [profile.coverUrl], index: 0 })} style={{ backgroundImage: profile.coverUrl ? `url(${fileUrl(profile.coverUrl)})` : undefined, backgroundColor: profile.profileColor || undefined }} />
@@ -150,12 +152,13 @@ export default function Profile({ user, setUser, profileId, openMessages }) {
           <small>Дата регистрации: {new Date(profile.createdAt).toLocaleDateString('ru-RU')}</small>
           <div className="followStats"><span>{profile.followersCount || 0} подписчиков</span><span>{profile.followingCount || 0} подписок</span><span>♥ профиля: {profile.profileLikes || 0}</span><span>популярность: {profile.popularity || 0}</span>{profile.isFriend && <b>Друзья</b>}</div>
         </div>
-        {isMe ? <button onClick={()=>setEdit(!edit)}>Редактировать</button> : <div className="profileActions"><button onClick={toggleFollow}>{profile.isFollowing ? 'Отписаться' : 'Подписаться'}</button><button className={profile.likedProfile ? 'liked' : 'ghost'} onClick={toggleProfileLike}>♥ Профиль</button><button className="ghost" onClick={openMessages}>Написать</button></div>}
+        {isMe ? <button onClick={()=>setEdit(!edit)}>Редактировать</button> : <div className="profileActions"><button onClick={toggleFollow}>{profile.isFollowing ? 'Отписаться' : 'Подписаться'}</button><button className={profile.likedProfile ? 'liked' : 'ghost'} onClick={toggleProfileLike}>♥ Профиль</button><button className="ghost" onClick={openMessages}>Написать</button><ReportButton targetType="profile" targetId={profile.id} /></div>}
       </div>
     </div>
 
     {isMe && edit && <form className="card composer" onSubmit={save}>
-      <input value={username} onChange={e=>setUsername(e.target.value)} placeholder="Имя" />
+      <input value={displayName} onChange={e=>setDisplayName(e.target.value)} placeholder="Имя" />
+      <input value={username} onChange={e=>setUsername(e.target.value.replace(/^@+/, ''))} placeholder="@username" />
       <textarea value={description} onChange={e=>setDescription(e.target.value)} placeholder="Описание" />
       <label>Цвет профиля<input type="color" value={profileColor || '#7c3cff'} onChange={e=>setProfileColor(e.target.value)}/></label>
       <label className="fileButton inlineFile">Аватар<input type="file" accept="image/*" onChange={e=>setAvatar(e.target.files[0])}/></label>

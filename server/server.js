@@ -42,6 +42,7 @@ app.use('/api/dev', createRateLimit({ windowMs: 60_000, max: 80, keyPrefix: 'dev
 app.use('/api/site', require('./routes/siteRoutes'));
 app.use('/api/live', require('./routes/liveRoutes'));
 app.use('/api/activity', require('./routes/activityRoutes'));
+app.use('/api/reports', require('./routes/reportRoutes'));
 
 app.get('/api/health', (_, res) => res.json({ ok: true, app: 'Yved' }));
 

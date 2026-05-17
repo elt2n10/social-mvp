@@ -203,3 +203,63 @@ body{color:var(--text)!important;background:var(--bg)!important}.sidebar{backgro
 select{width:100%;max-width:100%;border:1px solid var(--border);background:var(--input);color:var(--text);border-radius:var(--radius);padding:12px;outline:none}
 .themeChoiceGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.themeChoiceGrid button{min-height:44px}.forbiddenWordList{display:flex;flex-wrap:wrap;gap:8px}.forbiddenWordList span{padding:7px 10px;border-radius:999px;background:#1b1e2d;border:1px solid var(--border);font-size:13px}.noAnimations,.noAnimations *,.noAnimations *::before,.noAnimations *::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}.noAnimations button:hover,.noAnimations .clickable:hover,.noAnimations .pop,.noAnimations .pageFade{transform:none!important;filter:none!important}.noAnimations .videoComments,.noAnimations .modal{backdrop-filter:none!important}
 @media(max-width:650px){.themeChoiceGrid{grid-template-columns:1fr}}
+
+
+/* ===== Yved white theme polish, reports and video extra-bar fix ===== */
+body[data-theme="light"] {
+  --bg: #eef0f7;
+  --card: #f9fafc;
+  --sidebar: #f4f6fb;
+  --input: #ffffff;
+  --text: #111827;
+  --muted: #5b6475;
+  --border: #cfd4e4;
+  background: linear-gradient(180deg, #eef0f7 0%, #e8ebf4 100%);
+}
+body[data-theme="light"] .card,
+body[data-theme="light"] .modal,
+body[data-theme="light"] .authCard {
+  background: rgba(249,250,252,.96)!important;
+  border-color: var(--border)!important;
+  box-shadow: 0 12px 34px rgba(22,30,55,.10)!important;
+}
+body[data-theme="light"] .sidebar,
+body[data-theme="light"] .bottomNav {
+  background: rgba(244,246,251,.96)!important;
+  border-color: var(--border)!important;
+}
+body[data-theme="light"] input,
+body[data-theme="light"] textarea,
+body[data-theme="light"] select {
+  background: #ffffff!important;
+  color: #111827!important;
+  border-color: #cfd4e4!important;
+}
+body[data-theme="light"] button:not(.danger):not(.ghost):not(.cleanButton):not(.brandButton):not(.miniProfile) {
+  background: linear-gradient(135deg, #6d28d9, #7c3aed)!important;
+  color: #fff!important;
+}
+body[data-theme="light"] button.ghost,
+body[data-theme="light"] button.active,
+body[data-theme="light"] .dialogItem,
+body[data-theme="light"] .userRow,
+body[data-theme="light"] .devItem,
+body[data-theme="light"] .forbiddenWordList span {
+  background: #eef1f8!important;
+  color: #182033!important;
+  border: 1px solid #d5dae8!important;
+}
+body[data-theme="light"] .liked {
+  background: linear-gradient(135deg,#db2777,#7c3aed)!important;
+  color:#fff!important;
+}
+body[data-theme="light"] .bubble { background:#e8ebf5!important;color:#111827!important; }
+body[data-theme="light"] .bubble.mine { background:#6d28d9!important;color:white!important; }
+.postActions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}.reportBtn{width:42px;height:42px;padding:0}.reportModal textarea{min-height:120px}.reportItem small{margin-top:3px}.videoActions .reportBtn{border-radius:50%}.reportModalBackdrop{z-index:90}
+@media(max-width:760px){
+  body.videoMode .content.centeredContent{height:calc(100dvh - 60px)!important;padding:0!important;margin:0!important;overflow:hidden!important}
+  body.videoMode .videoPage.tiktokVideoPage{height:100%!important;min-height:0!important;overflow:hidden!important}
+  body.videoMode .videoFeed.tiktokFeed{height:100%!important;max-height:100%!important;padding:0!important;margin:0!important;overflow-y:auto!important;overflow-x:hidden!important;scroll-padding:0!important}
+  body.videoMode .tiktokCard{height:calc(100dvh - 60px)!important;min-height:calc(100dvh - 60px)!important;margin:0!important;border-radius:0!important;border:0!important;box-shadow:none!important;scroll-snap-align:start!important}
+  body.videoMode .bottomNav{height:60px!important;min-height:60px!important}
+}

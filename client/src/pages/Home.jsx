@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { api, fileUrl } from '../api/api';
 import Lightbox from '../components/Lightbox';
+import ReportButton from '../components/ReportButton';
 import { MAX_POST_CHARS, MAX_POST_IMAGES, preparePostImages } from '../utils/media';
 
 const LIMIT = 20;
@@ -118,7 +119,7 @@ export default function Home({ openProfile }) {
         </div>
         {p.text && <p className="safeText">{p.text}</p>}
         <PostImages images={p.imageUrls || (p.imageUrl ? [p.imageUrl] : [])} onOpen={(index) => setLightbox({ images: p.imageUrls || (p.imageUrl ? [p.imageUrl] : []), index })} />
-        <button className={p.likedByMe ? 'liked' : ''} onClick={()=>like(p.id)}>♥ {p.likes}</button>
+        <div className="row postActions"><button className={p.likedByMe ? 'liked' : ''} onClick={()=>like(p.id)}>♥ {p.likes}</button><ReportButton targetType="post" targetId={p.id} /></div>
         <div className="comments">
           {p.comments.map(c => <p className="safeText" key={c.id}><b className="clickable" onClick={()=>openProfile?.(c.authorId)}>{c.authorName}:</b> {c.text}</p>)}
           <div className="row commentRow"><input placeholder="Комментарий" value={comment[p.id] || ''} onChange={e=>setComment({...comment,[p.id]:e.target.value})}/><button type="button" onClick={()=>addComment(p.id)}>OK</button></div>

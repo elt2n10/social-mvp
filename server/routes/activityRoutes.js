@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/', auth, (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 40, 1), 100);
   const rows = db.prepare(`
-    SELECT a.*, u.username actorName, u.avatar actorAvatar
+    SELECT a.*, u.username actorName, u.displayName actorDisplayName, u.avatar actorAvatar
     FROM activity_events a
     LEFT JOIN users u ON u.id = a.actorId
     WHERE a.userId = ?
